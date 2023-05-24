@@ -15,7 +15,7 @@ def move_to_position(last,start,end,value,rangeOf,negative=False):
 
 
 if __name__=="__main__":
-    wait_time=4
+    wait_time=8
     samples=pd.read_csv('samples.csv',header=None)
     ##
     lastposition_Snelheid = (130,430)
@@ -49,7 +49,7 @@ if __name__=="__main__":
     Relatie_range=180
 
     time.sleep(4)
-    for index,row in samples.iterrows():
+    for index,row in samples.iloc[400:].iterrows():
         print(index)
         time.sleep(wait_time)
         #Snelheid

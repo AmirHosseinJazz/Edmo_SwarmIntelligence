@@ -8,11 +8,10 @@ from datetime import datetime
 table_width = 110  # Replace with your table width in centimeters
 
 # Set the time interval for measuring speed (in seconds)
-time_interval = 1  # Replace with your desired time interval
+time_interval = 3  # Replace with your desired time interval
 
 # Initialize the video capture
-cap = cv2.VideoCapture(1)  # Replace with your camera index if using multiple cameras
-
+cap = cv2.VideoCapture(2)  # Replace with your camera index if using multiple cameras
 # Calculate the pixel-to-centimeter conversion factor
 pixel_to_cm = table_width / cap.get(cv2.CAP_PROP_FRAME_WIDTH)
 
