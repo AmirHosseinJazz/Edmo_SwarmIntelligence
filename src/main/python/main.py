@@ -610,7 +610,6 @@ class MainWindow(QMainWindow):
         self._suggestion = []
         for _ in SLIDERS:
             self._suggestion.append(0)
-        self.give_suggestion(self._suggestion)
 
         # Frequency bits
         frequency_layout = QGridLayout()
@@ -788,7 +787,7 @@ class MainWindow(QMainWindow):
         self.reset_button.pressed.connect(self.reset_default_values)
         self.general_layout.addWidget(self.reset_button, 3, 2)
 
-        # Default suggestion type
+        # Suggestion dropdown
         self.suggestion_type = TEXT
         suggestion_layout = QGridLayout()
         suggestion_label = QLabel("Suggestion\ntype")
@@ -1176,6 +1175,7 @@ class MainWindow(QMainWindow):
 
     def add_default_suggestion_widget(self, layout, row_start=0, col=1):
         placeholder = QWidget()
+        placeholder.setFixedHeight(MAX_HEIGHT)
         self.layout_widget_lst.append([layout, placeholder])
         layout.addWidget(placeholder, row_start + SUGGESTION_ROW, col)
 
