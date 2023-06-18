@@ -441,7 +441,6 @@ GIF_SCALE = QSize().scaled(GIF_SIZE_SCALE, GIF_SIZE_SCALE, Qt.KeepAspectRatio)
 class MainWindow(QMainWindow):
     def __init__(self, structure, port, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
-        # TODO: Fix scale for all suggestion widgets (perhaps fix the height?)
 
         # Connection stuff
         self.port = port
