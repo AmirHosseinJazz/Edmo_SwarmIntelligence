@@ -422,11 +422,18 @@ PICTURE = 1
 GIF = 2
 SUGGESTIONS = ["Text", "Picture", "GIF"]
 
-# Layout constants
+# Slider layout constants
 LABEL_ROW = 0
 SUGGESTION_ROW = 1
 SLIDER_ROW = 2
 OFFSET_ROW_START = 3
+
+CONNECTION_ROW = 0
+SINGLE_SUGGESTION_ROW = 1
+FREQUENCY_ROW = 2
+MODULE_ROW = 3
+PHASE_ROW = 4
+EXPERIMENT_ROW = 5
 
 # Directories for pictures and GIFs
 folder = os.getcwd() + "\\pictures\\"
@@ -434,17 +441,18 @@ PIC_DIR = folder + "arrow.png"
 GIF_DIR = folder + "arrow.gif"
 GIF_INV_DIR = folder + "arrow_inv.gif"
 
-# Transformation and scaling variables
-PIC_SIZE_SCALE = 0.2
-PIC_SCALE = QtGui.QTransform().scale(PIC_SIZE_SCALE, PIC_SIZE_SCALE)
-Y_FLIP = QtGui.QTransform().scale(-1, 1)
-GIF_SIZE_SCALE = MAX_WIDTH
-GIF_SCALE = QSize().scaled(GIF_SIZE_SCALE, GIF_SIZE_SCALE, Qt.KeepAspectRatio)
-
 # Suggestion mode
 SINGLE = 0
 MULTI = 1
-SUGGESTION_MODE = MULTI
+SUGGESTION_MODE = SINGLE
+SUGGESTION_MODE_SCALING = -(SUGGESTION_MODE - 1) + 1
+
+# Transformation and scaling variables
+PIC_SIZE_SCALE = 0.2 * SUGGESTION_MODE_SCALING
+PIC_SCALE = QtGui.QTransform().scale(PIC_SIZE_SCALE, PIC_SIZE_SCALE)
+Y_FLIP = QtGui.QTransform().scale(-1, 1)
+GIF_SIZE_SCALE = MAX_WIDTH * SUGGESTION_MODE_SCALING
+GIF_SCALE = QSize().scaled(GIF_SIZE_SCALE, GIF_SIZE_SCALE, Qt.KeepAspectRatio)
 
 # Slider history
 SLIDER_HISTORY = 4
@@ -468,7 +476,6 @@ def create_empty_slider_history():
 class MainWindow(QMainWindow):
     def __init__(self, structure, port, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
-        # TODO: Make sure that the fixed height is only applied to the correct layouts
 
         # Connection stuff
         self.port = port
@@ -552,6 +559,8 @@ class MainWindow(QMainWindow):
                             " background-color: " \
                             "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop: 0 #dadbde, stop: 1 #8cabba);" \
                             " } "
+        self.frame_style = "QFrame {  border: 5px solid #00ff00; border-radius: 10px;}"
+        self.clear_frame_style = "QFrame {  border: 0px solid #00ff00; border-radius: 10px;}"
 
         # Buttons and values
         self.buttons = []
@@ -576,7 +585,7 @@ class MainWindow(QMainWindow):
         self.offset_images = []
         self.amplitude_images = []
 
-        self.canvases = []
+        self.frames = []
 
         self.running = True
 
@@ -625,11 +634,11 @@ class MainWindow(QMainWindow):
         self.serial_connect_button.setFont(self.label_font)
         self.serial_connect_button.pressed.connect(self.attempt_serial_connect)
         self.serial_connect_button.setEnabled(True)
-        self.general_layout.addWidget(self.error_label, 0, 0)
-        self.general_layout.addWidget(self.serial_connect_button, 0, 1)
+        self.general_layout.addWidget(self.error_label, CONNECTION_ROW, 0)
+        self.general_layout.addWidget(self.serial_connect_button, CONNECTION_ROW, 1)
         self.com_box = QComboBox()
         self.com_box.addItems(serial_ports())
-        self.general_layout.addWidget(self.com_box, 0, 2)
+        self.general_layout.addWidget(self.com_box, CONNECTION_ROW, 2)
 
         # Suggestion setup
         # Image and GIF loading
@@ -638,12 +647,14 @@ class MainWindow(QMainWindow):
         self.gif_inv = QMovie(GIF_INV_DIR)
         # Create the suggestion list with no real suggestions
         # so switching can be performed without any given suggestions.
-        self._suggestion = []
-        for _ in SLIDERS:
-            self._suggestion.append(0)
+        self._suggestions = [0] * len(SLIDERS)
+        self.single_suggestion_widget = self.add_default_single_suggestion_widget()
 
         # Frequency bits
         frequency_layout = QGridLayout()
+        freq_frame = QFrame()
+        freq_frame.setLineWidth(0)
+        freq_frame.setFrameStyle(QFrame.Panel)
 
         # Label
         frequency_label = QLabel("Snelheid:")
@@ -651,7 +662,7 @@ class MainWindow(QMainWindow):
         frequency_label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
         frequency_layout.addWidget(frequency_label, LABEL_ROW, 1)
 
-        self.add_default_suggestion_widget(frequency_layout)
+        self.add_default_multi_suggestion_widget(frequency_layout)
 
         # Image
         self.frequency_image = FrequencyAnimation()
@@ -664,7 +675,7 @@ class MainWindow(QMainWindow):
         self.frequency_slider.setValue(0)
         self.frequency_slider.setStyleSheet(self.slider_style)
         self.frequency_slider.valueChanged.connect(partial(self.frequency_slider_listener, self.frequency_slider))
-        self.frequency_slider.sliderReleased.connect(partial(self.update_slider_history, self.frequency_slider))
+        self.frequency_slider.sliderReleased.connect(partial(self.slider_released, self.frequency_slider, FREQUENCY))
         frequency_layout.addWidget(self.frequency_slider, SLIDER_ROW, 1)
 
         # Completing the frequecy UI element
@@ -677,16 +688,20 @@ class MainWindow(QMainWindow):
 
         frequency_layout.addWidget(self.frequency_box, 1, 2)
 
-        self.general_layout.addLayout(frequency_layout, 1, 0)
+        freq_frame.setLayout(frequency_layout)
+        self.frames.append(freq_frame)
+        self.general_layout.addWidget(freq_frame, FREQUENCY_ROW, 0)
 
         module_layout = QGridLayout()
         phase_bias_layout = QGridLayout()
 
+        phase_frame = QFrame()
+        phase_frame.setLineWidth(0)
+        phase_frame.setFrameStyle(QFrame.Panel)
+
         # For each module, creating the UI-elements for amplitude and offset.
         # They all have the same structure as frequency
         for i in range(self.n):
-            amplitude_layout = QGridLayout()
-
             module_label = QLabel("Module %i" % i)
             module_label.setFont(self.title_font)
             module_label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
@@ -697,13 +712,18 @@ class MainWindow(QMainWindow):
             module_frame.setFrameStyle(QFrame.Panel | QFrame.Raised)
             slider_layout = QGridLayout()
 
+            amplitude_layout = QGridLayout()
+            amp_frame = QFrame()
+            amp_frame.setLineWidth(0)
+            amp_frame.setFrameStyle(QFrame.Panel)
+
             amplitude_label = QLabel("Omvang:")
             amplitude_label.setFont(self.label_font)
             amplitude_label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
             self.amplitude_labels.append(amplitude_label)
             amplitude_layout.addWidget(amplitude_label, LABEL_ROW, 1)
 
-            self.add_default_suggestion_widget(amplitude_layout)
+            self.add_default_multi_suggestion_widget(amplitude_layout)
 
             amplitude_image = AmplitudeAnimation()
             self.amplitude_images.append(amplitude_image)
@@ -716,7 +736,8 @@ class MainWindow(QMainWindow):
             amplitude_dial.setValue(0)
             amplitude_dial.setStyleSheet(self.slider_style)
             amplitude_dial.valueChanged.connect(partial(self.dial_listener, amplitude_dial))
-            amplitude_dial.sliderReleased.connect(partial(self.update_slider_history, amplitude_dial))
+            amplitude_dial.sliderReleased.connect(partial(
+                self.slider_released, amplitude_dial, i * NEW_SLIDERS_PER_MODULE + AMPLITUDE_0))
             self.amplitude_dials.append(amplitude_dial)
             amplitude_layout.addWidget(amplitude_dial, SLIDER_ROW, 1)
 
@@ -729,9 +750,14 @@ class MainWindow(QMainWindow):
             self.amplitudes.append(amplitude_box)
             amplitude_layout.addWidget(amplitude_box, SLIDER_ROW, 2)
 
-            slider_layout.addLayout(amplitude_layout, 0, 0)
+            amp_frame.setLayout(amplitude_layout)
+            self.frames.append(amp_frame)
+            slider_layout.addWidget(amp_frame, 0, 0)
 
             offset_layout = QGridLayout()
+            os_frame = QFrame()
+            os_frame.setLineWidth(0)
+            os_frame.setFrameStyle(QFrame.Panel)
 
             offset_label = QLabel("Positie:")
             offset_label.setFont(self.label_font)
@@ -739,7 +765,7 @@ class MainWindow(QMainWindow):
             self.offset_labels.append(offset_label)
             offset_layout.addWidget(offset_label, LABEL_ROW, 1)
 
-            self.add_default_suggestion_widget(offset_layout)
+            self.add_default_multi_suggestion_widget(offset_layout)
 
             offset_image = OffsetAnimation()
             self.offset_images.append(offset_image)
@@ -752,7 +778,8 @@ class MainWindow(QMainWindow):
             offset_dial.setValue(0)
             offset_dial.setStyleSheet(self.slider_style)
             offset_dial.valueChanged.connect(partial(self.dial_listener, offset_dial))
-            offset_dial.sliderReleased.connect(partial(self.update_slider_history, offset_dial))
+            offset_dial.sliderReleased.connect(partial(
+                self.slider_released, offset_dial, i * NEW_SLIDERS_PER_MODULE + OFFSET_0))
             self.offset_dials.append(offset_dial)
             offset_layout.addWidget(offset_dial, SLIDER_ROW, 1)
 
@@ -765,7 +792,9 @@ class MainWindow(QMainWindow):
             self.offsets.append(offset_box)
             offset_layout.addWidget(offset_box, SLIDER_ROW, 2)
 
-            slider_layout.addLayout(offset_layout, 1, 0)
+            os_frame.setLayout(offset_layout)
+            self.frames.append(os_frame)
+            slider_layout.addWidget(os_frame, 1, 0)
 
             module_frame.setLayout(slider_layout)
 
@@ -777,7 +806,7 @@ class MainWindow(QMainWindow):
                 phase_bias_label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
                 phase_bias_layout.addWidget(phase_bias_label, LABEL_ROW, i)
 
-                self.add_default_suggestion_widget(phase_bias_layout, col=i)
+                self.add_default_multi_suggestion_widget(phase_bias_layout, col=i)
 
                 phase_bias_slider = MySlider(Qt.Horizontal)
                 phase_bias_slider.setFixedWidth(200)
@@ -786,7 +815,8 @@ class MainWindow(QMainWindow):
                 phase_bias_slider.setValue(0)
                 phase_bias_slider.setStyleSheet(self.slider_style)
                 phase_bias_slider.valueChanged.connect(partial(self.phase_bias_slider_listener, phase_bias_slider))
-                phase_bias_slider.sliderReleased.connect(partial(self.update_slider_history, phase_bias_slider))
+                phase_bias_slider.sliderReleased.connect(partial(
+                    self.slider_released, phase_bias_slider, i * NEW_SLIDERS_PER_MODULE + PHASE))
                 self.phase_bias_dials.append(phase_bias_slider)
                 phase_bias_layout.addWidget(phase_bias_slider, SLIDER_ROW, i)
 
@@ -804,8 +834,11 @@ class MainWindow(QMainWindow):
             # self.canvases.append(canvas)
             # module_layout.addWidget(canvas, 4, i)
 
-        self.general_layout.addLayout(module_layout, 2, 0)
-        self.general_layout.addLayout(phase_bias_layout, 3, 0)
+        self.general_layout.addLayout(module_layout, MODULE_ROW, 0)
+
+        phase_frame.setLayout(phase_bias_layout)
+        self.frames.append(phase_frame)
+        self.general_layout.addWidget(phase_frame, PHASE_ROW, 0)
 
         # Experimentation buttons
         # Start stop button
@@ -813,34 +846,34 @@ class MainWindow(QMainWindow):
         self.start_stop_button.setStyleSheet(self.button_style)
         self.start_stop_button.setFont(self.label_font)
         self.start_stop_button.pressed.connect(self.start_button_listener)
-        self.general_layout.addWidget(self.start_stop_button, 3, 1)
+        self.general_layout.addWidget(self.start_stop_button, PHASE_ROW, 1)
 
         # Reset button
         self.reset_button = QPushButton("Reset")
         self.reset_button.setStyleSheet(self.button_style)
         self.reset_button.setFont(self.label_font)
         self.reset_button.pressed.connect(self.reset_default_values)
-        self.general_layout.addWidget(self.reset_button, 3, 2)
+        self.general_layout.addWidget(self.reset_button, PHASE_ROW, 2)
 
         # Suggestion dropdown
         self.suggestion_type = TEXT
-        suggestion_layout = QGridLayout()
+        suggestion_type_layout = QGridLayout()
         suggestion_label = QLabel("Suggestion\ntype")
         suggestion_label.setFont(self.label_font)
-        suggestion_layout.addWidget(suggestion_label, 0, 0)
+        suggestion_type_layout.addWidget(suggestion_label, 0, 0)
         widget = QComboBox()
         widget.setFont(self.label_font)
         widget.addItems(SUGGESTIONS)
         widget.currentIndexChanged.connect(self.suggestion_button_listener)
-        suggestion_layout.addWidget(widget, 1, 0)
-        self.general_layout.addLayout(suggestion_layout, 4, 1)
+        suggestion_type_layout.addWidget(widget, 1, 0)
+        self.general_layout.addLayout(suggestion_type_layout, EXPERIMENT_ROW, 1)
 
         # Close button
         self.close_button = QPushButton("Sluiten")
         self.close_button.setStyleSheet(self.button_style)
         self.close_button.setFont(self.label_font)
         self.close_button.pressed.connect(self.close_listener)
-        self.general_layout.addWidget(self.close_button, 4, 2)
+        self.general_layout.addWidget(self.close_button, EXPERIMENT_ROW, 2)
 
         self.attempt_serial_connect()
 
@@ -898,7 +931,9 @@ class MainWindow(QMainWindow):
                 self.send_message()
 
     def suggestion_button_listener(self, i):
+        # Switch the suggestion type
         self.suggestion_type = i
+
         # TODO: Remove this in final version, just for testing
         # Create a list where the length is the number of sliders where all elements are 0 except for one.
         # The non-zero element is -1, or 1
@@ -906,9 +941,11 @@ class MainWindow(QMainWindow):
         idx = np.random.randint(len(SLIDERS))
         suggestions = [0] * len(SLIDERS)
         suggestions[idx] = direction
+        print(suggestions)
+        self._suggestions = suggestions
 
-        # Makes the suggestions switch instantly
-        self.give_suggestion(suggestions)
+        # Makes the suggestions switch
+        self.give_suggestion(self._suggestions)
 
     def give_suggestion(self, suggestion_lst):
         """
@@ -922,7 +959,7 @@ class MainWindow(QMainWindow):
         :return: None
         """
         # Used for suggestion switching
-        self._suggestion = suggestion_lst
+        self._suggestions = suggestion_lst
         if SUGGESTION_MODE == SINGLE:
             self.give_suggestion_single(suggestion_lst)
         elif SUGGESTION_MODE == MULTI:
@@ -939,12 +976,18 @@ class MainWindow(QMainWindow):
         The order should be: frequency, amplitude 0, offset 0, phase, amplitude 1, offset 1
         :return: None
         """
-        # TODO: Find layout and/or widget corresponding to this suggestion
-        # TODO: Copy inner loop code of give_suggestion_multi to external method;
-        #  make necessary adjustments;
-        #  let give_suggestion_multi and this method call the external method;
-        # TODO: Highlight correct suggestion
-        pass
+        layout = self.general_layout
+        old_widget = self.single_suggestion_widget
+        new_widget = QWidget()
+        for idx, suggestion in enumerate(suggestion_lst):
+            new_widget = self.give_suggestion_helper(suggestion, old_widget, idx)
+            if suggestion in [-1, 1]:
+                self.frames[idx].setStyleSheet(self.frame_style)
+                # Stop loop if a suggestion is given
+                break
+        # Replace the old widget
+        layout.addWidget(new_widget, SINGLE_SUGGESTION_ROW, 0)
+        layout.update()
 
     def give_suggestion_multi(self, suggestion_lst):
         """
@@ -960,47 +1003,67 @@ class MainWindow(QMainWindow):
         for idx, suggestion in enumerate(suggestion_lst):
             layout = self.layout_widget_lst[idx][0]
             old_widget = self.layout_widget_lst[idx][1]
-            # Always remove all existing widgets
-            # layout.removeWidget(old_widget)
-            old_widget.setParent(None)
-            new_widget = QLabel()
-            new_widget.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
-            new_widget.setFixedHeight(MAX_HEIGHT)
-
-            # Only create the widget if there's a suggestion
-            if suggestion in [-1, 1]:
-                # Suggestion using text
-                if self.suggestion_type == TEXT:
-                    label_text = ""
-                    if suggestion == -1:
-                        label_text += "Verlaag "
-                    elif suggestion == 1:
-                        label_text += "Verhoog "
-                    label_text += SLIDERS[idx]
-                    new_widget.setText(label_text)
-                    new_widget.setFont(self.label_font)
-                # Suggestion using a simple static arrow
-                elif self.suggestion_type == PICTURE:
-                    pixmap = self.pixmap.copy()
-                    pixmap = pixmap.transformed(PIC_SCALE)
-                    if suggestion == -1:
-                        pixmap = pixmap.transformed(Y_FLIP)
-                    new_widget.setPixmap(pixmap)
-                # Suggestion using an animated arrow
-                elif self.suggestion_type == GIF:
-                    gif = self.gif
-                    if suggestion == -1:
-                        gif = self.gif_inv
-                    gif.setScaledSize(GIF_SCALE)
-                    new_widget.setMovie(gif)
-                    gif.start()
             # Positioning
             col = 1
             if idx == PHASE:
                 col = 0
+            new_widget = self.give_suggestion_helper(suggestion, old_widget, idx)
+            # Replace the old widget
             layout.addWidget(new_widget, SUGGESTION_ROW, col)
-            self.layout_widget_lst[idx][1] = new_widget
             layout.update()
+            self.layout_widget_lst[idx][1] = new_widget
+
+    def give_suggestion_helper(self, suggestion, old_widget, slider_idx):
+        """
+        Removes the old widget from its layout and creates a new widget according to the suggestion type.
+        :param suggestion: The suggestion direction for this slider
+        :param old_widget: The widget that needs to be removed
+        :param slider_idx: The index of the slider that we want to  make a suggestion for.
+        :return: The new widget
+        """
+        # Always remove all existing widgets
+        # layout.removeWidget(old_widget)
+        old_widget.setParent(None)
+        # Default widget so something will be returned
+        new_widget = QLabel()
+        # Center alignment, because it's prettier
+        new_widget.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        # Fixing height so no weird UI switching happens
+        new_widget.setFixedHeight(MAX_HEIGHT * SUGGESTION_MODE_SCALING)
+
+        # Only create the widget if there's a suggestion
+        if suggestion in [-1, 1]:
+            # Suggestion using text
+            if self.suggestion_type == TEXT:
+                direction = ""
+                if suggestion == -1:
+                    direction = "Verlaag"
+                elif suggestion == 1:
+                    direction = "Verhoog"
+                slider_name = SLIDERS[slider_idx]
+                module_name = " "
+                if slider_idx % 3 in [1, 2]:
+                    module_name += "Module "
+                    module_name += str(int(np.floor(slider_idx / 3)))
+                label_text = direction + " " + slider_name + module_name
+                new_widget.setText(label_text)
+                new_widget.setFont(self.label_font)
+            # Suggestion using a simple static arrow
+            elif self.suggestion_type == PICTURE:
+                pixmap = self.pixmap.copy()
+                pixmap = pixmap.transformed(PIC_SCALE)
+                if suggestion == -1:
+                    pixmap = pixmap.transformed(Y_FLIP)
+                new_widget.setPixmap(pixmap)
+            # Suggestion using an animated arrow
+            elif self.suggestion_type == GIF:
+                gif = self.gif
+                if suggestion == -1:
+                    gif = self.gif_inv
+                gif.setScaledSize(GIF_SCALE)
+                new_widget.setMovie(gif)
+                gif.start()
+        return new_widget
 
     '''
     def update_plot(self):
@@ -1260,11 +1323,63 @@ class MainWindow(QMainWindow):
             self.amplitude_images[i].update()
         self.frequency_image.update()
 
-    def add_default_suggestion_widget(self, layout, row_start=0, col=1):
+    def add_default_single_suggestion_widget(self):
+        """
+        Creates a default suggestion widget and adds it to the general layout.
+        Should only be used for single-suggestion mode.
+        But there's a fail-save if you accidentally do
+        :return: The default widget
+        """
         placeholder = QWidget()
-        placeholder.setFixedHeight(MAX_HEIGHT)
-        self.layout_widget_lst.append([layout, placeholder])
-        layout.addWidget(placeholder, row_start + SUGGESTION_ROW, col)
+        if SUGGESTION_MODE == SINGLE:
+            placeholder.setFixedHeight(MAX_HEIGHT * SUGGESTION_MODE_SCALING)
+            self.general_layout.addWidget(placeholder, SINGLE_SUGGESTION_ROW, 0)
+        return placeholder
+
+    def add_default_multi_suggestion_widget(self, layout, row_start=0, col=1):
+        """
+        Creates a default suggestion widget and adds it to the given layout.
+        Should only be used for multi-suggestion mode.
+        But there's a fail-save if you accidentally do
+        :param layout: The layout the widget needs to be added to
+        :param row_start: The widget is always placed on SUGGESTION_ROW.
+        If the slider it needs to be added to does not start at 0 in the given layout,
+        it can be increased using this parameter.
+        0 by default.
+        :param col: The column it is added to in the layout
+        :return: None
+        """
+        if SUGGESTION_MODE == MULTI:
+            placeholder = QWidget()
+            placeholder.setFixedHeight(MAX_HEIGHT * SUGGESTION_MODE_SCALING)
+            self.layout_widget_lst.append([layout, placeholder])
+            layout.addWidget(placeholder, row_start + SUGGESTION_ROW, col)
+
+    def slider_released(self, slider, slider_idx):
+        frame = self.frames[slider_idx]
+        frame.setStyleSheet(self.clear_frame_style)
+        # Create new empty widget
+        placeholder = QWidget()
+        placeholder.setFixedHeight(MAX_HEIGHT * SUGGESTION_MODE_SCALING)
+        if SUGGESTION_MODE == SINGLE:
+            layout = self.general_layout
+            # Remove old widget
+            old_widget = self.single_suggestion_widget
+            old_widget.setParent(None)
+            # Add empty widget back
+            layout.addWidget(placeholder, SINGLE_SUGGESTION_ROW, 0)
+        elif SUGGESTION_MODE == MULTI:
+            layout = self.layout_widget_lst[slider_idx][0]
+            # Remove old widget
+            old_widget = self.layout_widget_lst[slider_idx][0]
+            old_widget.setParent(None)
+            # Positioning
+            col = 1
+            if slider_idx == PHASE:
+                col = 0
+            # Add empty widget back
+            layout.addWidget(placeholder, SUGGESTION_ROW, col)
+        self.update_slider_history(slider)
 
     def update_slider_history(self, slider):
         """
