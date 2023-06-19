@@ -469,7 +469,6 @@ class MainWindow(QMainWindow):
     def __init__(self, structure, port, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
         # TODO: Make sure that the fixed height is only applied to the correct layouts
-        # TODO: Fix slider change crash when suggestion changes
 
         # Connection stuff
         self.port = port
