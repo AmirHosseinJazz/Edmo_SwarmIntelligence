@@ -476,6 +476,8 @@ def create_empty_slider_history():
 class MainWindow(QMainWindow):
     def __init__(self, structure, port, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
+        # TODO: Remove highlight in multi mode?
+        # TODO: Remove highlights when new suggestion is made?
 
         # Connection stuff
         self.port = port
