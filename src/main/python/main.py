@@ -1048,6 +1048,7 @@ class MainWindow(QMainWindow):
                     direction = "Verhoog"
                 slider_name = SLIDERS[slider_idx]
                 module_name = " "
+                # If the slider index is amplitude or offset
                 if slider_idx % 3 in [1, 2]:
                     module_name += "Module "
                     module_name += str(int(np.floor(slider_idx / 3)))
