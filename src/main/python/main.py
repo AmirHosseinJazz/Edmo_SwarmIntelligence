@@ -1,3 +1,6 @@
+import copy
+from queue import Queue
+
 from fbs_runtime.application_context.PyQt5 import ApplicationContext
 
 import numpy as np
@@ -411,6 +414,7 @@ PHASE = 3
 AMPLITUDE_1 = 4
 OFFSET_1 = 5
 SLIDERS = ["Snelheid", "Omvang", "Positie", "Relatie", "Omvang", "Positie"]
+NEW_SLIDERS_PER_MODULE = 3
 
 # Suggestion types
 TEXT = 0
@@ -431,16 +435,41 @@ GIF_DIR = folder + "arrow.gif"
 GIF_INV_DIR = folder + "arrow_inv.gif"
 
 # Transformation and scaling variables
-PIC_SIZE_SCALE = 0.1
+PIC_SIZE_SCALE = 0.2
 PIC_SCALE = QtGui.QTransform().scale(PIC_SIZE_SCALE, PIC_SIZE_SCALE)
 Y_FLIP = QtGui.QTransform().scale(-1, 1)
 GIF_SIZE_SCALE = MAX_WIDTH
 GIF_SCALE = QSize().scaled(GIF_SIZE_SCALE, GIF_SIZE_SCALE, Qt.KeepAspectRatio)
 
+# Suggestion mode
+SINGLE = 0
+MULTI = 1
+SUGGESTION_MODE = MULTI
+
+# Slider history
+SLIDER_HISTORY = 4
+
+
+def create_empty_slider_history():
+    """
+    Creates a list of queues where the outer list is the number of sliders
+    and the inner queues are of length SLIDER_HISTORY where all elements are None
+    :return: A list of queues
+    """
+    slider_histories = []
+    for _, _ in enumerate(SLIDERS):
+        slider_history = Queue(maxsize=SLIDER_HISTORY)
+        for _ in range(SLIDER_HISTORY):
+            slider_history.put(None)
+        slider_histories.append(slider_history)
+    return slider_histories
+
 
 class MainWindow(QMainWindow):
     def __init__(self, structure, port, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
+        # TODO: Make sure that the fixed height is only applied to the correct layouts
+        # TODO: Fix slider change crash when suggestion changes
 
         # Connection stuff
         self.port = port
@@ -541,6 +570,9 @@ class MainWindow(QMainWindow):
         self.amplitude_labels = []
         self.offset_labels = []
 
+        # Slider histories
+        self.slider_history = create_empty_slider_history()
+
         # Images for sliders
         self.offset_images = []
         self.amplitude_images = []
@@ -633,6 +665,7 @@ class MainWindow(QMainWindow):
         self.frequency_slider.setValue(0)
         self.frequency_slider.setStyleSheet(self.slider_style)
         self.frequency_slider.valueChanged.connect(partial(self.frequency_slider_listener, self.frequency_slider))
+        self.frequency_slider.sliderReleased.connect(partial(self.update_slider_history, self.frequency_slider))
         frequency_layout.addWidget(self.frequency_slider, SLIDER_ROW, 1)
 
         # Completing the frequecy UI element
@@ -684,6 +717,7 @@ class MainWindow(QMainWindow):
             amplitude_dial.setValue(0)
             amplitude_dial.setStyleSheet(self.slider_style)
             amplitude_dial.valueChanged.connect(partial(self.dial_listener, amplitude_dial))
+            amplitude_dial.sliderReleased.connect(partial(self.update_slider_history, amplitude_dial))
             self.amplitude_dials.append(amplitude_dial)
             amplitude_layout.addWidget(amplitude_dial, SLIDER_ROW, 1)
 
@@ -719,6 +753,7 @@ class MainWindow(QMainWindow):
             offset_dial.setValue(0)
             offset_dial.setStyleSheet(self.slider_style)
             offset_dial.valueChanged.connect(partial(self.dial_listener, offset_dial))
+            offset_dial.sliderReleased.connect(partial(self.update_slider_history, offset_dial))
             self.offset_dials.append(offset_dial)
             offset_layout.addWidget(offset_dial, SLIDER_ROW, 1)
 
@@ -752,6 +787,7 @@ class MainWindow(QMainWindow):
                 phase_bias_slider.setValue(0)
                 phase_bias_slider.setStyleSheet(self.slider_style)
                 phase_bias_slider.valueChanged.connect(partial(self.phase_bias_slider_listener, phase_bias_slider))
+                phase_bias_slider.sliderReleased.connect(partial(self.update_slider_history, phase_bias_slider))
                 self.phase_bias_dials.append(phase_bias_slider)
                 phase_bias_layout.addWidget(phase_bias_slider, SLIDER_ROW, i)
 
@@ -834,6 +870,21 @@ class MainWindow(QMainWindow):
         # self.timer4.timeout.connect(self.update_plot)
         # self.timer4.start()
 
+    def get_slider_history(self):
+        """
+        Finds the history of all the sliders
+        :return: A list of queues.
+        Each list item is a slider and is in the order of
+        frequency, amplitude 0, offset 0, phase, amplitude 1, offset 1.
+        Each slider (queue) has a history of length SLIDER_HISTORY.
+        The last known slider value is at the back,
+        so the last dequeue operation will get you the last slider value.
+        The elements in the queue consist of floating point values.
+        If there have not been a sufficient number of sliders changed,
+        the queue may contain None values.
+        """
+        return self.slider_history
+
     def start_button_listener(self):
         if self.running:
             if self.ser is not None:
@@ -850,16 +901,20 @@ class MainWindow(QMainWindow):
     def suggestion_button_listener(self, i):
         self.suggestion_type = i
         # TODO: Remove this in final version, just for testing
-        suggestions = np.random.randint(3, size=6) - 1
-        print(suggestions)
-        self._suggestion = suggestions
+        # Create a list where the length is the number of sliders where all elements are 0 except for one.
+        # The non-zero element is -1, or 1
+        direction = np.random.randint(2) * 2 - 1
+        idx = np.random.randint(len(SLIDERS))
+        suggestions = [0] * len(SLIDERS)
+        suggestions[idx] = direction
+
         # Makes the suggestions switch instantly
-        self.give_suggestion(self._suggestion)
+        self.give_suggestion(suggestions)
 
     def give_suggestion(self, suggestion_lst):
         """
-        Gives the suggestion for the corresponding slider using the selected suggestion type (self.suggestion_type).
-        Only one suggestion should be given, but it is possible to give multiple
+        Gives the suggestion to the user, using the corresponding SUGGESTION_MODE.
+        Check the give_suggestion_single, and give_suggestion_multi methods for more info
         :param suggestion_lst: List of integers where each value should either be -1, 0 or 1.
         If it's -1, then the suggestion will be to decrease the slider of the corresponding index,
         if it's 1, then it the suggestion will be to increase that slider.
@@ -867,9 +922,42 @@ class MainWindow(QMainWindow):
         The order should be: frequency, amplitude 0, offset 0, phase, amplitude 1, offset 1
         :return: None
         """
-        # TODO: Prettier pics and GIFs
         # Used for suggestion switching
         self._suggestion = suggestion_lst
+        if SUGGESTION_MODE == SINGLE:
+            self.give_suggestion_single(suggestion_lst)
+        elif SUGGESTION_MODE == MULTI:
+            self.give_suggestion_multi(suggestion_lst)
+
+    def give_suggestion_single(self, suggestion_lst):
+        """
+        Gives the suggestion for the corresponding slider using the selected suggestion type (self.suggestion_type).
+        Only one suggestion should be given.
+        :param suggestion_lst: List of integers where each value should either be -1, 0 or 1.
+        If it's -1, then the suggestion will be to decrease the slider of the corresponding index,
+        if it's 1, then it the suggestion will be to increase that slider.
+        If it's any other integer (preferably 0), then it will not do anything.
+        The order should be: frequency, amplitude 0, offset 0, phase, amplitude 1, offset 1
+        :return: None
+        """
+        # TODO: Find layout and/or widget corresponding to this suggestion
+        # TODO: Copy inner loop code of give_suggestion_multi to external method;
+        #  make necessary adjustments;
+        #  let give_suggestion_multi and this method call the external method;
+        # TODO: Highlight correct suggestion
+        pass
+
+    def give_suggestion_multi(self, suggestion_lst):
+        """
+        Gives the suggestion for the corresponding slider using the selected suggestion type (self.suggestion_type).
+        Multiple suggestions can be given
+        :param suggestion_lst: List of integers where each value should either be -1, 0 or 1.
+        If it's -1, then the suggestion will be to decrease the slider of the corresponding index,
+        if it's 1, then it the suggestion will be to increase that slider.
+        If it's any other integer (preferably 0), then it will not do anything.
+        The order should be: frequency, amplitude 0, offset 0, phase, amplitude 1, offset 1
+        :return: None
+        """
         for idx, suggestion in enumerate(suggestion_lst):
             layout = self.layout_widget_lst[idx][0]
             old_widget = self.layout_widget_lst[idx][1]
@@ -1178,6 +1266,31 @@ class MainWindow(QMainWindow):
         placeholder.setFixedHeight(MAX_HEIGHT)
         self.layout_widget_lst.append([layout, placeholder])
         layout.addWidget(placeholder, row_start + SUGGESTION_ROW, col)
+
+    def update_slider_history(self, slider):
+        """
+        Dequeues and enqueues the slider value in the slider history.
+        Should only be called when the slider is released.
+        :param slider: The slider that contains the value and is updated
+        :return: None
+        """
+        slider_idx = 0
+        if slider == self.frequency_slider:
+            slider_idx = FREQUENCY
+        elif slider in self.amplitude_dials:
+            amp_idx = self.amplitude_dials.index(slider)
+            slider_idx = AMPLITUDE_0 + amp_idx * NEW_SLIDERS_PER_MODULE
+        elif slider in self.offset_dials:
+            os_idx = self.offset_dials.index(slider)
+            slider_idx = OFFSET_0 + os_idx * NEW_SLIDERS_PER_MODULE
+        elif slider in self.phase_bias_dials:
+            phase_idx = self.phase_bias_dials.index(slider)
+            slider_idx = PHASE + phase_idx * NEW_SLIDERS_PER_MODULE
+        value = slider.value()
+        # dequeue
+        self.slider_history[slider_idx].get()
+        # enqueue
+        self.slider_history[slider_idx].put(value)
 
 
 class CoMainWindow(MainWindow):
