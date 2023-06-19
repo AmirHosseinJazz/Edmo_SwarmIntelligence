@@ -476,7 +476,6 @@ def create_empty_slider_history():
 class MainWindow(QMainWindow):
     def __init__(self, structure, port, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
-        # TODO: Remove highlight in multi mode?
         # TODO: Remove highlights when new suggestion is made?
 
         # Connection stuff
@@ -651,6 +650,8 @@ class MainWindow(QMainWindow):
         # so switching can be performed without any given suggestions.
         self._suggestions = [0] * len(SLIDERS)
         self.single_suggestion_widget = self.add_default_single_suggestion_widget()
+        # Used for deleting the suggestions when the slider is removed
+        self._current_suggestion_idx = FREQUENCY
 
         # Frequency bits
         frequency_layout = QGridLayout()
@@ -962,6 +963,9 @@ class MainWindow(QMainWindow):
         """
         # Used for suggestion switching
         self._suggestions = suggestion_lst
+        for idx, suggestion in enumerate(suggestion_lst):
+            if suggestion in [-1, 1]:
+                self._current_suggestion_idx = idx
         if SUGGESTION_MODE == SINGLE:
             self.give_suggestion_single(suggestion_lst)
         elif SUGGESTION_MODE == MULTI:
@@ -1358,12 +1362,27 @@ class MainWindow(QMainWindow):
             layout.addWidget(placeholder, row_start + SUGGESTION_ROW, col)
 
     def slider_released(self, slider, slider_idx):
+        """
+        See remove_suggestion_and_highlight and update_slider_history
+        :param slider: A QSlider
+        :param slider_idx: The index of the slider
+        :return: None
+        """
+        self.remove_suggestion_and_highlight(slider_idx)
+        self.update_slider_history(slider)
+
+    def remove_suggestion_and_highlight(self, slider_idx):
+        """
+        Removes the suggestions and highlights
+        :param slider_idx: The index of the slider that needs their highlight and/or suggestion removed.
+        :return: None
+        """
         frame = self.frames[slider_idx]
         frame.setStyleSheet(self.clear_frame_style)
         # Create new empty widget
         placeholder = QWidget()
         placeholder.setFixedHeight(MAX_HEIGHT * SUGGESTION_MODE_SCALING)
-        if SUGGESTION_MODE == SINGLE:
+        if SUGGESTION_MODE == SINGLE and self._current_suggestion_idx == slider_idx:
             layout = self.general_layout
             # Remove old widget
             old_widget = self.single_suggestion_widget
@@ -1381,7 +1400,6 @@ class MainWindow(QMainWindow):
                 col = 0
             # Add empty widget back
             layout.addWidget(placeholder, SUGGESTION_ROW, col)
-        self.update_slider_history(slider)
 
     def update_slider_history(self, slider):
         """
