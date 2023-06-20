@@ -473,10 +473,31 @@ def create_empty_slider_history():
     return slider_histories
 
 
+def clear_suggestion_widget(layout, old_widget, row=SUGGESTION_ROW, col=0):
+    """
+    Removes the given suggestion widget,
+    and add a new empty suggestion widget with fixed height,
+    so it does not mess with the UI.
+    :param layout: The layout where the new widget is added to.
+    :param old_widget: The widget that needs to be removed, this should usually be the given layout.
+    :param row: The row the placeholder widget is added to in the given layout.
+    SUGGESTION_ROW by default.
+    :param col: The column the placeholder widget is added to in the given layout.
+    0 by default.
+    :return: None
+    """
+    # Create new empty widget
+    placeholder = QWidget()
+    placeholder.setFixedHeight(MAX_HEIGHT * SUGGESTION_MODE_SCALING)
+    # Remove old widget
+    old_widget.setParent(None)
+    # Add empty widget back
+    layout.addWidget(placeholder, row, col)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, structure, port, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
-        # TODO: Remove highlights when new suggestion is made?
 
         # Connection stuff
         self.port = port
@@ -678,7 +699,7 @@ class MainWindow(QMainWindow):
         self.frequency_slider.setValue(0)
         self.frequency_slider.setStyleSheet(self.slider_style)
         self.frequency_slider.valueChanged.connect(partial(self.frequency_slider_listener, self.frequency_slider))
-        self.frequency_slider.sliderReleased.connect(partial(self.slider_released, self.frequency_slider, FREQUENCY))
+        self.frequency_slider.sliderReleased.connect(partial(self.slider_released, self.frequency_slider))
         frequency_layout.addWidget(self.frequency_slider, SLIDER_ROW, 1)
 
         # Completing the frequecy UI element
@@ -740,7 +761,7 @@ class MainWindow(QMainWindow):
             amplitude_dial.setStyleSheet(self.slider_style)
             amplitude_dial.valueChanged.connect(partial(self.dial_listener, amplitude_dial))
             amplitude_dial.sliderReleased.connect(partial(
-                self.slider_released, amplitude_dial, i * NEW_SLIDERS_PER_MODULE + AMPLITUDE_0))
+                self.slider_released, amplitude_dial))
             self.amplitude_dials.append(amplitude_dial)
             amplitude_layout.addWidget(amplitude_dial, SLIDER_ROW, 1)
 
@@ -782,7 +803,7 @@ class MainWindow(QMainWindow):
             offset_dial.setStyleSheet(self.slider_style)
             offset_dial.valueChanged.connect(partial(self.dial_listener, offset_dial))
             offset_dial.sliderReleased.connect(partial(
-                self.slider_released, offset_dial, i * NEW_SLIDERS_PER_MODULE + OFFSET_0))
+                self.slider_released, offset_dial))
             self.offset_dials.append(offset_dial)
             offset_layout.addWidget(offset_dial, SLIDER_ROW, 1)
 
@@ -819,7 +840,7 @@ class MainWindow(QMainWindow):
                 phase_bias_slider.setStyleSheet(self.slider_style)
                 phase_bias_slider.valueChanged.connect(partial(self.phase_bias_slider_listener, phase_bias_slider))
                 phase_bias_slider.sliderReleased.connect(partial(
-                    self.slider_released, phase_bias_slider, i * NEW_SLIDERS_PER_MODULE + PHASE))
+                    self.slider_released, phase_bias_slider))
                 self.phase_bias_dials.append(phase_bias_slider)
                 phase_bias_layout.addWidget(phase_bias_slider, SLIDER_ROW, i)
 
@@ -937,16 +958,6 @@ class MainWindow(QMainWindow):
         # Switch the suggestion type
         self.suggestion_type = i
 
-        # TODO: Remove this in final version, just for testing
-        # Create a list where the length is the number of sliders where all elements are 0 except for one.
-        # The non-zero element is -1, or 1
-        direction = np.random.randint(2) * 2 - 1
-        idx = np.random.randint(len(SLIDERS))
-        suggestions = [0] * len(SLIDERS)
-        suggestions[idx] = direction
-        print(suggestions)
-        self._suggestions = suggestions
-
         # Makes the suggestions switch
         self.give_suggestion(self._suggestions)
 
@@ -963,6 +974,7 @@ class MainWindow(QMainWindow):
         """
         # Used for suggestion switching
         self._suggestions = suggestion_lst
+        self.remove_all_suggestion_and_highlight()
         for idx, suggestion in enumerate(suggestion_lst):
             if suggestion in [-1, 1]:
                 self._current_suggestion_idx = idx
@@ -1362,45 +1374,40 @@ class MainWindow(QMainWindow):
             self.layout_widget_lst.append([layout, placeholder])
             layout.addWidget(placeholder, row_start + SUGGESTION_ROW, col)
 
-    def slider_released(self, slider, slider_idx):
+    def slider_released(self, slider):
         """
         See remove_suggestion_and_highlight and update_slider_history
         :param slider: A QSlider
-        :param slider_idx: The index of the slider
         :return: None
         """
-        self.remove_suggestion_and_highlight(slider_idx)
+        self.remove_all_suggestion_and_highlight()
         self.update_slider_history(slider)
 
-    def remove_suggestion_and_highlight(self, slider_idx):
+    def remove_all_suggestion_and_highlight(self):
         """
-        Removes the suggestions and highlights
-        :param slider_idx: The index of the slider that needs their highlight and/or suggestion removed.
+        Removes the suggestions and highlights, but keeps the size of the widget.
+        See clear_suggestion_widget for more details.
         :return: None
         """
-        frame = self.frames[slider_idx]
-        frame.setStyleSheet(self.clear_frame_style)
         # Create new empty widget
         placeholder = QWidget()
         placeholder.setFixedHeight(MAX_HEIGHT * SUGGESTION_MODE_SCALING)
-        if SUGGESTION_MODE == SINGLE and self._current_suggestion_idx == slider_idx:
+        if SUGGESTION_MODE == SINGLE:
             layout = self.general_layout
-            # Remove old widget
             old_widget = self.single_suggestion_widget
-            old_widget.setParent(None)
-            # Add empty widget back
             layout.addWidget(placeholder, SINGLE_SUGGESTION_ROW, 0)
-        elif SUGGESTION_MODE == MULTI:
-            layout = self.layout_widget_lst[slider_idx][0]
-            # Remove old widget
-            old_widget = self.layout_widget_lst[slider_idx][0]
-            old_widget.setParent(None)
-            # Positioning
-            col = 1
-            if slider_idx == PHASE:
-                col = 0
-            # Add empty widget back
-            layout.addWidget(placeholder, SUGGESTION_ROW, col)
+            clear_suggestion_widget(layout, old_widget, SINGLE_SUGGESTION_ROW)
+        for slider_idx, frame in enumerate(self.frames):
+            # Clear the highlight for all frames
+            frame.setStyleSheet(self.clear_frame_style)
+            if SUGGESTION_MODE == MULTI:
+                layout = self.layout_widget_lst[slider_idx][0]
+                old_widget = self.layout_widget_lst[slider_idx][0]
+                # Positioning
+                col = 1
+                if slider_idx == PHASE:
+                    col = 0
+                clear_suggestion_widget(layout, old_widget, SUGGESTION_ROW, col)
 
     def update_slider_history(self, slider):
         """
