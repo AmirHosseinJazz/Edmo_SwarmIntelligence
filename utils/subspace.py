@@ -19,7 +19,7 @@ def subspace_by_clustering(k=10):
     path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
     path = os.path.join(path, 'samples.csv')
     data=pd.read_csv(path, sep=',',header=None)
-    print(data.head())
+    # print(data.head())
 
     # perform K means clustering
     kmeans = KMeans(n_clusters=k, random_state=0).fit(data)
@@ -30,9 +30,9 @@ def subspace_by_clustering(k=10):
     # get bounds for each cluster
     for i in range(n_clusters):
         dt=data[kmeans.labels_==i]
-        print('cluster ', i, ' size: ', len(dt))
+        # print('cluster ', i, ' size: ', len(dt))
         bounds=get_subspace_bounds(dt)
-        print('cluster ', i, ' bounds: ', bounds)
+        # print('cluster ', i, ' bounds: ', bounds)
         cluster_bounds.append(bounds)
     return {'cluster_bounds': cluster_bounds, 'kmeans': kmeans}
 
@@ -73,8 +73,7 @@ def recursive_binary_partitioning(data, num_subspaces=8, dimension=0):
     # Recurse on each subspace
     subspaces1 = recursive_binary_partitioning(subspace1, num_subspaces // 2, (dimension + 1) % 6)
     subspaces2 = recursive_binary_partitioning(subspace2, num_subspaces // 2, (dimension + 1) % 6)
-    
     return subspaces1 + subspaces2
 
+
 # subspace_by_clustering()
-# subspace_by_values()
