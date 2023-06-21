@@ -8,7 +8,7 @@ from datetime import datetime
 table_width = 110  # Replace with your table width in centimeters
 
 # Set the time interval for measuring speed (in seconds)
-time_interval = 3  # Replace with your desired time interval
+time_interval = 9  # Replace with your desired time interval
 
 # Initialize the video capture
 cap = cv2.VideoCapture(1)  # Replace with your camera index if using multiple cameras
@@ -47,6 +47,7 @@ while True:
     if ids is not None:
         for i in range(len(ids)):
             if ids[i] == desired_id:
+                
                 # Calculate the center of the cv2.aruco marker
                 center_x = int((corners[i][0][0][0] + corners[i][0][2][0]) / 2)
                 center_y = int((corners[i][0][0][1] + corners[i][0][2][1]) / 2)
@@ -66,7 +67,7 @@ while True:
                 # Update the previous center and time
                 prev_center = (center_x, center_y)
                 prev_time = current_time
-
+                time.sleep(time_interval-2)
     # Display the frame
     cv2.imshow("cv2.aruco Marker Speed Measurement", frame)
 
