@@ -3,7 +3,7 @@ from pyDOE import lhs
 import csv
 
 if __name__ == '__main__':
-    var1=[x/10 for x in list(range(5,101,10))]
+    var1=[x/10 for x in list(range(50,101,10))]
     var2=[x for x in range(30,76,15)]
     var3=[x for x in range(-75,76,15)]
     var4=[x for x in range(30,76,15)]
