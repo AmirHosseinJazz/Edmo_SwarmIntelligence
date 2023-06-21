@@ -19,32 +19,34 @@ from matplotlib import animation
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.model_selection import cross_val_score
 import pickle 
-from subspace import *
+from utils import subspace
 
-def create_subspaces_and_storing():
-    path = os.path.join( '../olddata/firstbatch_500Samples.csv')
-    path2 = os.path.join( '../olddata/secondbatch_500Samples.csv')
-    df1=pd.read_csv(path, sep=',')
+def create_subspaces_and_store(n_clusters=8):
+    path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+    path1 = os.path.join( path,'sampling/olddata/firstbatch_500Samples.csv')
+    path2 = os.path.join( path,'sampling/olddata/secondbatch_500Samples.csv')
+    df1=pd.read_csv(path1, sep=',')
     df2=pd.read_csv(path2, sep=',')
     df=pd.concat([df1,df2])
-    # columns = ['Snelheid', 'Omvang1', 'Positie1', 'Relatie', 'Omvang2', "Positie2", 'Speed']
-    # df = df[columns]
     cols = df.drop(columns = ['Speed','Unnamed: 0'], axis = 1).columns
-    clusters_return=subspace_by_clustering(k=10,data=df[cols])
-    with open("models/cluster_bounds", "wb") as pickewriter:   #Pickling
+    # creating subspaces based on the sample data 
+    clusters_return=subspace.subspace_by_clustering(k=n_clusters,data=df[cols])
+    #get currenty directory
+    with open(path+"/utils/pickles/cluster_bounds", "wb") as pickewriter:   #Pickling cluster bounds for pso
         pickle.dump(clusters_return['cluster_bounds'], pickewriter)
-    with open("models/kmeans_classifier", "wb") as pick:   #Pickling
+    with open(path+"/utils/pickles/kmeans_classifier", "wb") as pick:   #Pickling classifier for further use on new locations
         pickle.dump(clusters_return['kmeans'], pick)
 
 def create_objectivefunction_for_subspaces():
-    path = os.path.join( '../olddata/firstbatch_500Samples.csv')
-    path2 = os.path.join( '../olddata/secondbatch_500Samples.csv')
-    df1=pd.read_csv(path, sep=',')
+    path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+    path1 = os.path.join( path,'sampling/olddata/firstbatch_500Samples.csv')
+    path2 = os.path.join( path,'sampling/olddata/secondbatch_500Samples.csv')
+    df1=pd.read_csv(path1, sep=',')
     df2=pd.read_csv(path2, sep=',')
     df=pd.concat([df1,df2])
     df.drop(columns=['Unnamed: 0'],inplace=True)
     cols = df.drop(columns = ['Speed'], axis = 1).columns
-    with open("models/kmeans_classifier", "rb") as f:
+    with open(path+"/utils/pickles/kmeans_classifier", "rb") as f:
         model = pickle.load(f)
     clusters=[]
     for index,row in df[cols].iterrows():
@@ -71,7 +73,7 @@ def create_objectivefunction_for_subspaces():
 
         models.append(regr)
 
-    with open("models/subspace_models", "wb") as pick: 
+    with open(path+"/utils/pickles/subspace_models", "wb") as pick: 
         pickle.dump(models, pick) 
 
 
@@ -172,11 +174,12 @@ def pso(space,regr):
     return optimized_solution
 
 
-def get_subspace_bounds():
-    with open("models/cluster_bounds", "rb") as f:
+def get_subspace_optimas():
+    path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+    with open(path+"/utils/pickles/cluster_bounds", "rb") as f:
         cluster_bounds = pickle.load(f)
     
-    with open("models/subspace_models", "rb") as f:
+    with open(path+"/utils/pickles/subspace_models", "rb") as f:
         subspace_models = pickle.load(f)
     subspace = np.array(cluster_bounds)
     bounds = []
@@ -184,6 +187,5 @@ def get_subspace_bounds():
     for i in range(len(cluster_bounds)):
         space=np.array(cluster_bounds[i])
         optimums.append(pso(space,subspace_models[i]))
-    return optimums
-
-get_subspace_bounds()
+    DF=pd.DataFrame(optimums,index=range(len(optimums)),columns=['Snelheid', 'Omvang1', 'Positie1', 'Omvang2','Positie2', 'Relatie'])
+    DF.to_csv(path+"/utils/pickles/optimums.csv")
