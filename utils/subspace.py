@@ -17,7 +17,7 @@ def get_subspace_bounds(subspace):
     return bounds
 
 def subspace_by_clustering(k=10,data=None):
-    # read csv from parent folder
+    # read csv from parent PIC_FOLDER
     # path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
     # path = os.path.join(path, 'samples.csv')
     # data=pd.read_csv(path, sep=',',header=None)
