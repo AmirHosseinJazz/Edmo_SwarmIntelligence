@@ -674,8 +674,8 @@ class MainWindow(QMainWindow):
         except OSError:
             print('save directory failed')
         try:
-            if not path.exists('resources/save/oscillator'):
-                os.mkdir('resources/save/oscillator')
+            if not path.exists(OSCILLATOR_FOLDER):
+                os.mkdir(OSCILLATOR_FOLDER)
         except OSError:
             print('save directory failed')
 
