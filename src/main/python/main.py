@@ -474,18 +474,19 @@ SLIDER_HISTORY = 4
 DEFAULT_SLIDER_VALUE = 0
 
 
-def create_empty_slider_history():
+def create_empty_slider_history() -> Queue:
     """
-    Creates a list of queues where the outer list is the number of sliders
-    and the inner queues are of length SLIDER_HISTORY where all elements are None
-    :return: A list of queues
+    Creates a queue of lists where the queue has the length of SLIDER_HISTORY
+    and the inner lists have the same length as the number of sliders,
+    where all elements have the value DEFAULT_SLIDER_VALUE
+    :return: A queue of lists
     """
-    slider_histories = []
-    for _, _ in enumerate(SLIDERS):
-        slider_history = Queue(maxsize=SLIDER_HISTORY)
-        for _ in range(SLIDER_HISTORY):
-            slider_history.put(DEFAULT_SLIDER_VALUE)
-        slider_histories.append(slider_history)
+    slider_histories = Queue(maxsize=SLIDER_HISTORY)
+    for _ in range(SLIDER_HISTORY):
+        slider_vals = []
+        for _, _ in enumerate(SLIDERS):
+            slider_vals.append(DEFAULT_SLIDER_VALUE)
+        slider_histories.put(slider_vals)
     return slider_histories
 
 
@@ -524,7 +525,7 @@ def reformat_sliders_to_backend(slider_list: List[int]) -> List[int]:
     :return: The same list, but in the order of
     frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
     """
-    reformatted_list = copy.deepcopy(slider_list)
+    reformatted_list = slider_list.copy()
     phase = reformatted_list.pop(PHASE)
     reformatted_list.append(phase)
     return reformatted_list
@@ -648,6 +649,8 @@ class MainWindow(QMainWindow):
         self.layout_widget_lst = []
 
         # Sliders and labels
+        self.sliders = []
+        self.slider_values = [0] * len(SLIDERS)
         self.amplitude_dials = []
         self.offset_dials = []
         self.phase_bias_dials = []
@@ -768,8 +771,9 @@ class MainWindow(QMainWindow):
         self.frequency_slider.setValue(DEFAULT_SLIDER_VALUE)
         self.frequency_slider.setStyleSheet(self.slider_style)
         self.frequency_slider.valueChanged.connect(partial(self.frequency_slider_listener, self.frequency_slider))
-        self.frequency_slider.sliderReleased.connect(partial(self.slider_released, self.frequency_slider))
+        self.frequency_slider.sliderReleased.connect(partial(self.slider_released))
         frequency_layout.addWidget(self.frequency_slider, SLIDER_ROW, 1)
+        self.sliders.append(self.frequency_slider)
 
         # Completing the frequecy UI element
         self.frequency_box = QLineEdit()
@@ -825,10 +829,10 @@ class MainWindow(QMainWindow):
             amplitude_dial.setValue(DEFAULT_SLIDER_VALUE)
             amplitude_dial.setStyleSheet(self.slider_style)
             amplitude_dial.valueChanged.connect(partial(self.dial_listener, amplitude_dial))
-            amplitude_dial.sliderReleased.connect(partial(
-                self.slider_released, amplitude_dial))
+            amplitude_dial.sliderReleased.connect(partial(self.slider_released))
             self.amplitude_dials.append(amplitude_dial)
             amplitude_layout.addWidget(amplitude_dial, SLIDER_ROW, 1)
+            self.sliders.append(amplitude_dial)
 
             amplitude_box = QLineEdit()
             amplitude_box.setFont(self.label_font)
@@ -867,10 +871,10 @@ class MainWindow(QMainWindow):
             offset_dial.setValue(DEFAULT_SLIDER_VALUE)
             offset_dial.setStyleSheet(self.slider_style)
             offset_dial.valueChanged.connect(partial(self.dial_listener, offset_dial))
-            offset_dial.sliderReleased.connect(partial(
-                self.slider_released, offset_dial))
+            offset_dial.sliderReleased.connect(partial(self.slider_released))
             self.offset_dials.append(offset_dial)
             offset_layout.addWidget(offset_dial, SLIDER_ROW, 1)
+            self.sliders.append(offset_dial)
 
             offset_box = QLineEdit()
             offset_box.setFont(self.label_font)
@@ -908,10 +912,10 @@ class MainWindow(QMainWindow):
                 phase_bias_slider.setValue(DEFAULT_SLIDER_VALUE)
                 phase_bias_slider.setStyleSheet(self.slider_style)
                 phase_bias_slider.valueChanged.connect(partial(self.phase_bias_slider_listener, phase_bias_slider))
-                phase_bias_slider.sliderReleased.connect(partial(
-                    self.slider_released, phase_bias_slider))
+                phase_bias_slider.sliderReleased.connect(partial(self.slider_released))
                 self.phase_bias_dials.append(phase_bias_slider)
                 phase_bias_layout.addWidget(phase_bias_slider, SLIDER_ROW, i)
+                self.sliders.append(phase_bias_slider)
 
                 bias_box = QLineEdit()
                 bias_box.setFont(self.label_font)
@@ -921,6 +925,7 @@ class MainWindow(QMainWindow):
                 bias_box.setPlaceholderText(str(0.0))
                 self.phase_biases.append(bias_box)
                 phase_bias_layout.addWidget(bias_box, SLIDER_ROW + 1, i)
+
                 self.frames.append(phase_frame)
                 phase_frame.setLayout(phase_bias_layout)
                 self.general_layout.addWidget(phase_frame, PHASE_ROW, 0)
@@ -994,22 +999,18 @@ class MainWindow(QMainWindow):
         # self.timer4.timeout.connect(self.update_plot)
         # self.timer4.start()
 
-    def get_slider_history(self) -> List[Queue]:
+    def get_slider_history(self) -> Queue:
         """
         Finds the history of all the sliders
-        :return: A list of queues.
+        :return: A queue of lists of integers.
+        Each queue is the values of all sliders when any slider is moved, the length of which is SLIDER_HISTORY.
         Each list item is a slider and is in the order of
         frequency, amplitude 0, offset 0, phase, amplitude 1, offset 1.
-        Each slider (queue) has a history of length SLIDER_HISTORY.
-        The last known slider value is at the back,
-        so the last dequeue operation will get you the last slider value.
-        The elements in the queue consist of integers.
-        If there have not been a sufficient number of sliders changed,
-        the queue may contain default slider value, which is DEFAULT_SLIDER_VALUE.
+        The creation of the slider history can be seen in create_empty_slider_history
         """
         return self.slider_history
 
-    def format_slider_history(self):
+    def format_slider_history(self) -> List[List[int]]:
         """
         The back-end requires the slider history to be in a different format.
         This method performs the conversion to that format.
@@ -1023,11 +1024,11 @@ class MainWindow(QMainWindow):
         See also: reformat_sliders
         """
         formatted_slider_history = []
-        for queue in self.get_slider_history():
-            q_list = list(queue.queue)
-            formatted_slider_history.append(reformat_sliders_to_backend(q_list))
-        transposed_history = np.array(formatted_slider_history).T.tolist()
-        return transposed_history
+        q_list = list(self.slider_history.queue)
+        for slider_vals in q_list:
+            reformatted_slider_vals = reformat_sliders_to_backend(slider_vals)
+            formatted_slider_history.append(reformatted_slider_vals)
+        return formatted_slider_history
 
     def start_button_listener(self):
         if self.running:
@@ -1266,6 +1267,7 @@ class MainWindow(QMainWindow):
 
     def frequency_slider_listener(self, slider):
         v = slider.value() / self.frequency_scale
+        self.update_slider_value(slider, v)
         self.structure.frequency = v
         self.frequency_box.setText(str(v))
         self.frequency_box.setPalette(self.default_palette)
@@ -1275,6 +1277,7 @@ class MainWindow(QMainWindow):
 
     def phase_bias_slider_listener(self, slider):
         v = slider.value()
+        self.update_slider_value(slider, v)
         i = self.phase_bias_dials.index(slider)
         self.structure.phase_bias_matrix[i, i + 1] = v
         self.structure.phase_bias_matrix[i + 1, i] = -v
@@ -1287,6 +1290,7 @@ class MainWindow(QMainWindow):
 
     def dial_listener(self, dial):
         v = dial.value()
+        self.update_slider_value(dial, v)
         if dial in self.amplitude_dials:
             i = self.amplitude_dials.index(dial)
             self.amplitude_images[i].amplitude = v
@@ -1453,18 +1457,18 @@ class MainWindow(QMainWindow):
             self.layout_widget_lst.append([layout, placeholder])
             layout.addWidget(placeholder, row_start + SUGGESTION_ROW, col)
 
-    def slider_released(self, slider: QSlider) -> None:
+    def slider_released(self) -> None:
         """
         Removes all suggestions and highlights according to remove_suggestion_and_highlight.
         Updates the slider histories according to update_slider_history.
         Gets the suggestion from optimization.suggestion.
         Feeds this suggestion to give_suggestion
-        :param slider: A QSlider
         :return: None
         """
         self.remove_all_suggestions_and_highlights()
-        self.update_slider_history(slider)
-        suggestion = optimization.suggestion(self.format_slider_history())
+        self.update_slider_history()
+        formatted_slider_hist = self.format_slider_history()
+        suggestion = optimization.suggestion(formatted_slider_hist)
         reformatted_suggestion = reformat_sliders_to_frontend(suggestion)
         self.give_suggestion(reformatted_suggestion)
 
@@ -1494,30 +1498,26 @@ class MainWindow(QMainWindow):
                     col = 0
                 clear_suggestion_widget(layout, old_widget, SUGGESTION_ROW, col)
 
-    def update_slider_history(self, slider):
+    def update_slider_history(self):
         """
-        Dequeues and enqueues the slider value in the slider history.
+        Dequeues and enqueues the slider values in the slider history.
         Should only be called when the slider is released.
-        :param slider: The slider that contains the value and is updated
         :return: None
         """
-        slider_idx = 0
-        if slider == self.frequency_slider:
-            slider_idx = FREQUENCY
-        elif slider in self.amplitude_dials:
-            amp_idx = self.amplitude_dials.index(slider)
-            slider_idx = AMPLITUDE_0 + amp_idx * NEW_SLIDERS_PER_MODULE
-        elif slider in self.offset_dials:
-            os_idx = self.offset_dials.index(slider)
-            slider_idx = OFFSET_0 + os_idx * NEW_SLIDERS_PER_MODULE
-        elif slider in self.phase_bias_dials:
-            phase_idx = self.phase_bias_dials.index(slider)
-            slider_idx = PHASE + phase_idx * NEW_SLIDERS_PER_MODULE
-        value = slider.value()
         # dequeue
-        self.slider_history[slider_idx].get()
+        self.slider_history.get()
         # enqueue
-        self.slider_history[slider_idx].put(value)
+        self.slider_history.put(self.slider_values)
+
+    def update_slider_value(self, slider: MySlider, val: int) -> None:
+        """
+        Updates the slider values for the given slider with the given value
+        :param slider: The slider
+        :param val: The value
+        :return: None
+        """
+        idx = self.sliders.index(slider)
+        self.slider_values[idx] = val
 
 
 class CoMainWindow(MainWindow):
