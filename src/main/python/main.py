@@ -1,5 +1,6 @@
 import copy
 from queue import Queue
+from typing import List, Optional
 
 from fbs_runtime.application_context.PyQt5 import ApplicationContext
 
@@ -20,6 +21,8 @@ from os import path
 import socket
 import threading
 import time
+
+import optimization
 import stopThreading
 
 
@@ -414,6 +417,7 @@ PHASE = 3
 AMPLITUDE_1 = 4
 OFFSET_1 = 5
 SLIDERS = ["Snelheid", "Omvang", "Positie", "Relatie", "Omvang", "Positie"]
+NO_OF_SLIDERS = len(SLIDERS)
 NEW_SLIDERS_PER_MODULE = 3
 
 # Suggestion types
@@ -435,11 +439,20 @@ MODULE_ROW = 3
 PHASE_ROW = 4
 EXPERIMENT_ROW = 5
 
-# Directories for pictures and GIFs
-folder = os.getcwd() + "\\pictures\\"
-PIC_DIR = folder + "arrow.png"
-GIF_DIR = folder + "arrow.gif"
-GIF_INV_DIR = folder + "arrow_inv.gif"
+# Resources
+RESOURCE_ROOT_FOLDER = os.getcwd() + "\\src\\main\\python\\resources\\"
+PIC_FOLDER = RESOURCE_ROOT_FOLDER + "pictures\\"
+PIC_DIR = PIC_FOLDER + "arrow.png"
+GIF_DIR = PIC_FOLDER + "arrow.gif"
+GIF_INV_DIR = PIC_FOLDER + "arrow_inv.gif"
+# File-saving
+SAVE_FOLDER = RESOURCE_ROOT_FOLDER + "save\\"
+OSCILLATOR_FOLDER = SAVE_FOLDER + "oscillator\\"
+IMU_FILES_PREFIX = OSCILLATOR_FOLDER + "potentials"
+ANGLES_FILES_PREFIX = OSCILLATOR_FOLDER + "angles"
+POTENTIALS_FILES_PREFIX = OSCILLATOR_FOLDER + "imu"
+PARAMETERS_FILES_PREFIX = SAVE_FOLDER + "parameters"
+SAVE_FILES_SUFFIX = "modules.txt"
 
 # Suggestion mode
 SINGLE = 0
@@ -457,6 +470,9 @@ GIF_SCALE = QSize().scaled(GIF_SIZE_SCALE, GIF_SIZE_SCALE, Qt.KeepAspectRatio)
 # Slider history
 SLIDER_HISTORY = 4
 
+# Default slider values
+DEFAULT_SLIDER_VALUE = 0
+
 
 def create_empty_slider_history():
     """
@@ -468,7 +484,7 @@ def create_empty_slider_history():
     for _, _ in enumerate(SLIDERS):
         slider_history = Queue(maxsize=SLIDER_HISTORY)
         for _ in range(SLIDER_HISTORY):
-            slider_history.put(None)
+            slider_history.put(DEFAULT_SLIDER_VALUE)
         slider_histories.append(slider_history)
     return slider_histories
 
@@ -493,6 +509,44 @@ def clear_suggestion_widget(layout, old_widget, row=SUGGESTION_ROW, col=0):
     old_widget.setParent(None)
     # Add empty widget back
     layout.addWidget(placeholder, row, col)
+
+
+def reformat_sliders_to_backend(slider_list: List[int]) -> List[int]:
+    """
+    The front-end has everything that has to do with the sliders in the order of
+    frequency, amplitude module 0, offset module 0, phase, amplitude module 1, offset module 1
+    The back-end has everything that has to do with the sliders in the order of
+    frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+    I.e., the 'phase' slider is taken to be at the end of the sequence in the back-end
+    instead of in between the modules.
+    :param slider_list: A list in the order of
+    frequency, amplitude module 0, offset module 0, phase, amplitude module 1, offset module 1
+    :return: The same list, but in the order of
+    frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+    """
+    reformatted_list = copy.deepcopy(slider_list)
+    phase = reformatted_list.pop(PHASE)
+    reformatted_list.append(phase)
+    return reformatted_list
+
+
+def reformat_sliders_to_frontend(slider_list: List[int]) -> List[int]:
+    """
+    The front-end has everything that has to do with the sliders in the order of
+    frequency, amplitude module 0, offset module 0, phase, amplitude module 1, offset module 1
+    The back-end has everything that has to do with the sliders in the order of
+    frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+    I.e., the 'phase' slider is taken to be at the end of the sequence in the back-end
+    instead of in between the modules.
+    :param slider_list: A list in the order of
+    frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+    :return: The same list, but in the order of
+    frequency, amplitude module 0, offset module 0, phase, amplitude module 1, offset module 1
+    """
+    reformatted_list = copy.deepcopy(slider_list)
+    phase = reformatted_list.pop()
+    reformatted_list.insert(PHASE, phase)
+    return reformatted_list
 
 
 class MainWindow(QMainWindow):
@@ -615,31 +669,48 @@ class MainWindow(QMainWindow):
         now = datetime.now()
         dt_string = now.strftime("%d-%m-%Y %H-%M-%S")
         try:
-            if not path.exists('./save'):
-                os.mkdir('./save')
+            if not path.exists(SAVE_FOLDER):
+                os.mkdir(SAVE_FOLDER)
         except OSError:
             print('save directory failed')
         try:
-            if not path.exists('./save/oscillator'):
-                os.mkdir('./save/oscillator')
+            if not path.exists(OSCILLATOR_FOLDER):
+                os.mkdir(OSCILLATOR_FOLDER)
         except OSError:
             print('save directory failed')
 
-        self.potentials_save_file = './save/oscillator/potentials %s %s %s modules.txt' \
-                                    % (dt_string, self.structure.name, self.n)
+        self.potentials_save_file = '%s %s %s %s %s' \
+                                    % (POTENTIALS_FILES_PREFIX,
+                                       dt_string,
+                                       self.structure.name,
+                                       self.n,
+                                       SAVE_FILES_SUFFIX)
         self.potentials_save_file = open(self.potentials_save_file, 'a')
 
-        self.angles_save_file = './save/oscillator/angles %s %s %s modules.txt' \
-                                % (dt_string, self.structure.name, self.n)
+        self.angles_save_file = '%s %s %s %s %s' \
+                                % (ANGLES_FILES_PREFIX,
+                                   dt_string,
+                                   self.structure.name,
+                                   self.n,
+                                   SAVE_FILES_SUFFIX)
         self.angles_save_file = open(self.angles_save_file, 'a')
 
-        self.imu_save_file = './save/oscillator/imu %s %s %s modules.txt' \
-                             % (dt_string, self.structure.name, self.n)
+        self.imu_save_file = '%s %s %s %s %s' \
+                             % (IMU_FILES_PREFIX,
+                                dt_string,
+                                self.structure.name,
+                                self.n,
+                                SAVE_FILES_SUFFIX)
         self.imu_save_file = open(self.imu_save_file, 'a')
         self.imu_save_file.write(
             str(['timestamp', 'Accelermeters', 'Gyroscope', 'Magnetometers', 'System', 'Theta', 'Phi', 'Psi']) + '\n')
 
-        self.parameters_save_file = './save/parameters %s %s %s modules.txt' % (dt_string, self.structure.name, self.n)
+        self.parameters_save_file = '%s %s %s %s %s' \
+                                    % (PARAMETERS_FILES_PREFIX,
+                                       dt_string,
+                                       self.structure.name,
+                                       self.n,
+                                       SAVE_FILES_SUFFIX)
         self.parameters_save_file = open(self.parameters_save_file, 'w')
         self.parameters_save_file.write(str(['timestamp', 'frequency', 'amplitudes', 'offsets', 'phase_biases']) + '\n')
 
@@ -669,10 +740,8 @@ class MainWindow(QMainWindow):
         self.gif_inv = QMovie(GIF_INV_DIR)
         # Create the suggestion list with no real suggestions
         # so switching can be performed without any given suggestions.
-        self._suggestions = [0] * len(SLIDERS)
+        self._suggestions = [0] * NO_OF_SLIDERS
         self.single_suggestion_widget = self.add_default_single_suggestion_widget()
-        # Used for deleting the suggestions when the slider is removed
-        self._current_suggestion_idx = FREQUENCY
 
         # Frequency bits
         frequency_layout = QGridLayout()
@@ -696,7 +765,7 @@ class MainWindow(QMainWindow):
         self.frequency_slider = MySlider(Qt.Horizontal)
         self.frequency_slider.setMinimum(int(self.frequency_bounds[0] * self.frequency_scale))
         self.frequency_slider.setMaximum(int(self.frequency_bounds[1] * self.frequency_scale))
-        self.frequency_slider.setValue(0)
+        self.frequency_slider.setValue(DEFAULT_SLIDER_VALUE)
         self.frequency_slider.setStyleSheet(self.slider_style)
         self.frequency_slider.valueChanged.connect(partial(self.frequency_slider_listener, self.frequency_slider))
         self.frequency_slider.sliderReleased.connect(partial(self.slider_released, self.frequency_slider))
@@ -718,10 +787,6 @@ class MainWindow(QMainWindow):
 
         module_layout = QGridLayout()
         phase_bias_layout = QGridLayout()
-
-        phase_frame = QFrame()
-        phase_frame.setLineWidth(0)
-        phase_frame.setFrameStyle(QFrame.Panel)
 
         # For each module, creating the UI-elements for amplitude and offset.
         # They all have the same structure as frequency
@@ -757,7 +822,7 @@ class MainWindow(QMainWindow):
             amplitude_dial.setFixedWidth(200)
             amplitude_dial.setMinimum(self.amplitude_bounds[0])
             amplitude_dial.setMaximum(self.amplitude_bounds[1])
-            amplitude_dial.setValue(0)
+            amplitude_dial.setValue(DEFAULT_SLIDER_VALUE)
             amplitude_dial.setStyleSheet(self.slider_style)
             amplitude_dial.valueChanged.connect(partial(self.dial_listener, amplitude_dial))
             amplitude_dial.sliderReleased.connect(partial(
@@ -799,7 +864,7 @@ class MainWindow(QMainWindow):
             offset_dial.setFixedWidth(200)
             offset_dial.setMinimum(self.offset_bounds[0])
             offset_dial.setMaximum(self.offset_bounds[1])
-            offset_dial.setValue(0)
+            offset_dial.setValue(DEFAULT_SLIDER_VALUE)
             offset_dial.setStyleSheet(self.slider_style)
             offset_dial.valueChanged.connect(partial(self.dial_listener, offset_dial))
             offset_dial.sliderReleased.connect(partial(
@@ -825,6 +890,10 @@ class MainWindow(QMainWindow):
             # Do the same for the phase, but one less per module.
             # Since you do not want the phase between the first and last one
             if i < self.n - 1:
+                phase_frame = QFrame()
+                phase_frame.setLineWidth(0)
+                phase_frame.setFrameStyle(QFrame.Panel)
+
                 phase_bias_label = QLabel("Relatie:")
                 phase_bias_label.setFont(self.label_font)
                 phase_bias_label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
@@ -836,7 +905,7 @@ class MainWindow(QMainWindow):
                 phase_bias_slider.setFixedWidth(200)
                 phase_bias_slider.setMinimum(self.offset_bounds[0])
                 phase_bias_slider.setMaximum(self.offset_bounds[1])
-                phase_bias_slider.setValue(0)
+                phase_bias_slider.setValue(DEFAULT_SLIDER_VALUE)
                 phase_bias_slider.setStyleSheet(self.slider_style)
                 phase_bias_slider.valueChanged.connect(partial(self.phase_bias_slider_listener, phase_bias_slider))
                 phase_bias_slider.sliderReleased.connect(partial(
@@ -852,6 +921,9 @@ class MainWindow(QMainWindow):
                 bias_box.setPlaceholderText(str(0.0))
                 self.phase_biases.append(bias_box)
                 phase_bias_layout.addWidget(bias_box, SLIDER_ROW + 1, i)
+                self.frames.append(phase_frame)
+                phase_frame.setLayout(phase_bias_layout)
+                self.general_layout.addWidget(phase_frame, PHASE_ROW, 0)
 
             module_layout.addWidget(module_frame, 3, i)
             # canvas = MplCanvas(self, n=self.n, width=5, height=4, dpi=50)
@@ -859,10 +931,6 @@ class MainWindow(QMainWindow):
             # module_layout.addWidget(canvas, 4, i)
 
         self.general_layout.addLayout(module_layout, MODULE_ROW, 0)
-
-        phase_frame.setLayout(phase_bias_layout)
-        self.frames.append(phase_frame)
-        self.general_layout.addWidget(phase_frame, PHASE_ROW, 0)
 
         # Experimentation buttons
         # Start stop button
@@ -926,7 +994,7 @@ class MainWindow(QMainWindow):
         # self.timer4.timeout.connect(self.update_plot)
         # self.timer4.start()
 
-    def get_slider_history(self):
+    def get_slider_history(self) -> List[Queue]:
         """
         Finds the history of all the sliders
         :return: A list of queues.
@@ -935,11 +1003,31 @@ class MainWindow(QMainWindow):
         Each slider (queue) has a history of length SLIDER_HISTORY.
         The last known slider value is at the back,
         so the last dequeue operation will get you the last slider value.
-        The elements in the queue consist of floating point values.
+        The elements in the queue consist of integers.
         If there have not been a sufficient number of sliders changed,
-        the queue may contain None values.
+        the queue may contain default slider value, which is DEFAULT_SLIDER_VALUE.
         """
         return self.slider_history
+
+    def format_slider_history(self):
+        """
+        The back-end requires the slider history to be in a different format.
+        This method performs the conversion to that format.
+        :return: A list of lists. The outer list (1st dimension) is of length SLIDER_HISTORY.
+        The inner list (2nd dimension) has the same length as the number of sliders,
+        in this particular scope that is 6, and will always be 6 in this scope.
+        For future use, this should be changed dynamically if a different number of sliders is used,
+        because a different number of modules or modules with more sliders are used.
+        The order of sliders of the 2nd dimension is
+        frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+        See also: reformat_sliders
+        """
+        formatted_slider_history = []
+        for queue in self.get_slider_history():
+            q_list = list(queue.queue)
+            formatted_slider_history.append(reformat_sliders_to_backend(q_list))
+        transposed_history = np.array(formatted_slider_history).T.tolist()
+        return transposed_history
 
     def start_button_listener(self):
         if self.running:
@@ -954,10 +1042,9 @@ class MainWindow(QMainWindow):
                 self.running = True
                 self.send_message()
 
-    def suggestion_button_listener(self, i):
+    def suggestion_button_listener(self, i: int):
         # Switch the suggestion type
         self.suggestion_type = i
-
         # Makes the suggestions switch
         self.give_suggestion(self._suggestions)
 
@@ -974,10 +1061,7 @@ class MainWindow(QMainWindow):
         """
         # Used for suggestion switching
         self._suggestions = suggestion_lst
-        self.remove_all_suggestion_and_highlight()
-        for idx, suggestion in enumerate(suggestion_lst):
-            if suggestion in [-1, 1]:
-                self._current_suggestion_idx = idx
+        self.remove_all_suggestions_and_highlights()
         if SUGGESTION_MODE == SINGLE:
             self.give_suggestion_single(suggestion_lst)
         elif SUGGESTION_MODE == MULTI:
@@ -995,15 +1079,15 @@ class MainWindow(QMainWindow):
         :return: None
         """
         layout = self.general_layout
-        old_widget = self.single_suggestion_widget
         new_widget = QWidget()
         for idx, suggestion in enumerate(suggestion_lst):
-            new_widget = self.give_suggestion_helper(suggestion, old_widget, idx)
+            new_widget = self.give_suggestion_helper(suggestion, idx)
             if suggestion in [-1, 1]:
                 self.frames[idx].setStyleSheet(self.frame_style)
                 # Stop loop if a suggestion is given
                 break
         # Replace the old widget
+        self.single_suggestion_widget = new_widget
         layout.addWidget(new_widget, SINGLE_SUGGESTION_ROW, 0)
         layout.update()
 
@@ -1020,28 +1104,23 @@ class MainWindow(QMainWindow):
         """
         for idx, suggestion in enumerate(suggestion_lst):
             layout = self.layout_widget_lst[idx][0]
-            old_widget = self.layout_widget_lst[idx][1]
             # Positioning
             col = 1
             if idx == PHASE:
                 col = 0
-            new_widget = self.give_suggestion_helper(suggestion, old_widget, idx)
+            new_widget = self.give_suggestion_helper(suggestion, idx)
             # Replace the old widget
             layout.addWidget(new_widget, SUGGESTION_ROW, col)
             layout.update()
             self.layout_widget_lst[idx][1] = new_widget
 
-    def give_suggestion_helper(self, suggestion, old_widget, slider_idx):
+    def give_suggestion_helper(self, suggestion, slider_idx):
         """
         Removes the old widget from its layout and creates a new widget according to the suggestion type.
         :param suggestion: The suggestion direction for this slider
-        :param old_widget: The widget that needs to be removed
         :param slider_idx: The index of the slider that we want to  make a suggestion for.
         :return: The new widget
         """
-        # Always remove all existing widgets
-        # layout.removeWidget(old_widget)
-        old_widget.setParent(None)
         # Default widget so something will be returned
         new_widget = QLabel()
         # Center alignment, because it's prettier
@@ -1166,8 +1245,8 @@ class MainWindow(QMainWindow):
             self.amplitudes[i].setPalette(self.default_palette)
             self.offsets[i].setText(str(0))
             self.offsets[i].setPalette(self.default_palette)
-            self.amplitude_dials[i].setValue(0)
-            self.offset_dials[i].setValue(0)
+            self.amplitude_dials[i].setValue(DEFAULT_SLIDER_VALUE)
+            self.offset_dials[i].setValue(DEFAULT_SLIDER_VALUE)
 
             self.amplitude_images[i].amplitude = 0.0
             self.offset_images[i].offset = 0.0
@@ -1176,7 +1255,7 @@ class MainWindow(QMainWindow):
         self.structure.phase_bias_matrix = np.zeros([self.n, self.n])
         for i in range(self.n - 1):
             self.phase_biases[i].setText(str(0))
-            self.phase_bias_dials[i].setValue(0)
+            self.phase_bias_dials[i].setValue(DEFAULT_SLIDER_VALUE)
 
         self.start_stop_button.setText("Stop")
         self.running = True
@@ -1374,16 +1453,22 @@ class MainWindow(QMainWindow):
             self.layout_widget_lst.append([layout, placeholder])
             layout.addWidget(placeholder, row_start + SUGGESTION_ROW, col)
 
-    def slider_released(self, slider):
+    def slider_released(self, slider: QSlider) -> None:
         """
-        See remove_suggestion_and_highlight and update_slider_history
+        Removes all suggestions and highlights according to remove_suggestion_and_highlight.
+        Updates the slider histories according to update_slider_history.
+        Gets the suggestion from optimization.suggestion.
+        Feeds this suggestion to give_suggestion
         :param slider: A QSlider
         :return: None
         """
-        self.remove_all_suggestion_and_highlight()
+        self.remove_all_suggestions_and_highlights()
         self.update_slider_history(slider)
+        suggestion = optimization.suggestion(self.format_slider_history())
+        reformatted_suggestion = reformat_sliders_to_frontend(suggestion)
+        self.give_suggestion(reformatted_suggestion)
 
-    def remove_all_suggestion_and_highlight(self):
+    def remove_all_suggestions_and_highlights(self):
         """
         Removes the suggestions and highlights, but keeps the size of the widget.
         See clear_suggestion_widget for more details.
