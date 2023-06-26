@@ -458,7 +458,8 @@ SAVE_FILES_SUFFIX = "modules.txt"
 SINGLE = 0
 MULTI = 1
 SUGGESTION_MODE = SINGLE
-SUGGESTION_MODE_SCALING = -(SUGGESTION_MODE - 1) + 1
+# This ensures that the suggestions
+SUGGESTION_MODE_SCALING = 2 - SUGGESTION_MODE
 
 # Transformation and scaling variables
 PIC_SIZE_SCALE = 0.2 * SUGGESTION_MODE_SCALING
@@ -510,6 +511,7 @@ def clear_suggestion_widget(layout, old_widget, row=SUGGESTION_ROW, col=0):
     old_widget.setParent(None)
     # Add empty widget back
     layout.addWidget(placeholder, row, col)
+    return placeholder
 
 
 def reformat_sliders_to_backend(slider_list: List[int]) -> List[int]:
@@ -1484,19 +1486,19 @@ class MainWindow(QMainWindow):
         if SUGGESTION_MODE == SINGLE:
             layout = self.general_layout
             old_widget = self.single_suggestion_widget
-            layout.addWidget(placeholder, SINGLE_SUGGESTION_ROW, 0)
             clear_suggestion_widget(layout, old_widget, SINGLE_SUGGESTION_ROW)
         for slider_idx, frame in enumerate(self.frames):
             # Clear the highlight for all frames
             frame.setStyleSheet(self.clear_frame_style)
             if SUGGESTION_MODE == MULTI:
                 layout = self.layout_widget_lst[slider_idx][0]
-                old_widget = self.layout_widget_lst[slider_idx][0]
+                old_widget = self.layout_widget_lst[slider_idx][1]
                 # Positioning
                 col = 1
                 if slider_idx == PHASE:
                     col = 0
-                clear_suggestion_widget(layout, old_widget, SUGGESTION_ROW, col)
+                placeholder_widget = clear_suggestion_widget(layout, old_widget, col=col)
+                self.layout_widget_lst[slider_idx][1] = placeholder_widget
 
     def update_slider_history(self):
         """
