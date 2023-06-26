@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import os
 from sklearn.cluster import KMeans
+import random
+
 
 #### Method 1 : Clustering
 # get bounds for each dimension of a subspace
@@ -14,11 +16,11 @@ def get_subspace_bounds(subspace):
         bounds.append((min_val, max_val))
     return bounds
 
-def subspace_by_clustering(k=10):
-    # read csv from parent folder
-    path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
-    path = os.path.join(path, 'samples.csv')
-    data=pd.read_csv(path, sep=',',header=None)
+def subspace_by_clustering(k=10,data=None):
+    # read csv from parent PIC_FOLDER
+    # path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+    # path = os.path.join(path, 'samples.csv')
+    # data=pd.read_csv(path, sep=',',header=None)
     # print(data.head())
 
     # perform K means clustering
