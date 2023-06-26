@@ -16,7 +16,7 @@ if __name__ == '__main__':
     values_per_dimension = [len(var1), len(var2), len(var3), len(var4), len(var5), len(var6)]
 
     # Generate the Latin Hypercube Sample
-    lhs_sample = lhs(num_dimensions, samples=100, criterion='maximin')
+    lhs_sample = lhs(num_dimensions, samples=1200, criterion='maximin')
 
     # Initialize the sampled indices list
     sampled_indices = []
