@@ -50,7 +50,7 @@ if __name__=="__main__":
     Relatie_range=180
     DF=pd.DataFrame(columns=['Timestamp','Snelheid','Omvang1','Positie1','Omvang2','Positie2','Relatie'])
     time.sleep(8)
-    for index,row in samples.iloc[:5].iterrows():
+    for index,row in samples.iloc[201:500].iterrows():
         print(index)
         time.sleep(wait_time)
         # Snelheid

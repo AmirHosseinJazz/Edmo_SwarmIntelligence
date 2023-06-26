@@ -67,7 +67,11 @@ while True:
                 # Update the previous center and time
                 prev_center = (center_x, center_y)
                 prev_time = current_time
-                time.sleep(time_interval-2)
+                startpauseTime=time.time()
+                stoppauseTime=1
+                while stoppauseTime<int(startpauseTime)+5:
+                    stoppauseTime=time.time()
+
     # Display the frame
     cv2.imshow("cv2.aruco Marker Speed Measurement", frame)
 
