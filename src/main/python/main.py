@@ -1,30 +1,31 @@
 import copy
+import glob
+import os
+import socket
+import sys
+import threading
+import time
+from datetime import datetime
+from functools import partial
+from os import path
 from queue import Queue
-from typing import List, Optional
-
-from fbs_runtime.application_context.PyQt5 import ApplicationContext
+from typing import List
 
 import numpy as np
-from functools import partial
-from datetime import datetime
-import glob
-
+# Ensure that you install the pyserial package
 import serial
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt, QTimer, QRect, QSize
 from PyQt5.QtGui import QPalette, QPainter, QBrush, QColor, QFont, QMovie
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QLabel, QLineEdit, QSlider, QWidget, QGridLayout, QComboBox, \
     QPushButton, QFrame, QTextBrowser, QStyleOptionSlider, QStyle
-import sys
-import os
-from os import path
-import socket
-import threading
-import time
+from fbs_runtime.application_context.PyQt5 import ApplicationContext
 
-import optimization
 import stopThreading
 
+sys.path.append(path.dirname(path.dirname(path.dirname(path.dirname(path.abspath(__file__))))))
+
+import optimization
 
 # from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 # from matplotlib.figure import Figure
