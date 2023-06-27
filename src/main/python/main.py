@@ -22,9 +22,11 @@ import socket
 import threading
 import time
 
-import optimization
 import stopThreading
 
+sys.path.append(path.dirname(path.dirname(path.dirname(path.dirname(path.abspath(__file__))))))
+
+import optimization
 
 # from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 # from matplotlib.figure import Figure
