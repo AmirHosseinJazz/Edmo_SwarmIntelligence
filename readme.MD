@@ -15,3 +15,26 @@ Domain knowledge might create a bias in our parameter space (we deleted some poi
 
 Discuss about idea of spilitting space - the effect of splitting on PSO
 Clustering technique for splitting space
+
+
+
+------------
+Rico Meeting
+pairwise parameters analyze
+train_test models
+visualizing clusters
+visualize plots-
+usecases for feedback
+some idea at start -not spoiling the end goal
+-
+report
+plots
+Exploratory data analysis
+propose research questions?
+feel free to adjust research question
+coherent story and answer our questions
+discussions:
+    show insights - reflect a bit on what we've done
+    shortcomings - not sabotaging
+
+one column like project plan
