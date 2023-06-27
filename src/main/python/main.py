@@ -1,26 +1,25 @@
 import copy
+import glob
+import os
+import socket
+import sys
+import threading
+import time
+from datetime import datetime
+from functools import partial
+from os import path
 from queue import Queue
-from typing import List, Optional
-
-from fbs_runtime.application_context.PyQt5 import ApplicationContext
+from typing import List
 
 import numpy as np
-from functools import partial
-from datetime import datetime
-import glob
-
+# Ensure that you install the pyserial package
 import serial
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt, QTimer, QRect, QSize
 from PyQt5.QtGui import QPalette, QPainter, QBrush, QColor, QFont, QMovie
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QLabel, QLineEdit, QSlider, QWidget, QGridLayout, QComboBox, \
     QPushButton, QFrame, QTextBrowser, QStyleOptionSlider, QStyle
-import sys
-import os
-from os import path
-import socket
-import threading
-import time
+from fbs_runtime.application_context.PyQt5 import ApplicationContext
 
 import stopThreading
 
@@ -460,7 +459,8 @@ SAVE_FILES_SUFFIX = "modules.txt"
 SINGLE = 0
 MULTI = 1
 SUGGESTION_MODE = SINGLE
-SUGGESTION_MODE_SCALING = -(SUGGESTION_MODE - 1) + 1
+# This ensures that the suggestions
+SUGGESTION_MODE_SCALING = 2 - SUGGESTION_MODE
 
 # Transformation and scaling variables
 PIC_SIZE_SCALE = 0.2 * SUGGESTION_MODE_SCALING
@@ -512,6 +512,7 @@ def clear_suggestion_widget(layout, old_widget, row=SUGGESTION_ROW, col=0):
     old_widget.setParent(None)
     # Add empty widget back
     layout.addWidget(placeholder, row, col)
+    return placeholder
 
 
 def reformat_sliders_to_backend(slider_list: List[int]) -> List[int]:
@@ -1486,19 +1487,19 @@ class MainWindow(QMainWindow):
         if SUGGESTION_MODE == SINGLE:
             layout = self.general_layout
             old_widget = self.single_suggestion_widget
-            layout.addWidget(placeholder, SINGLE_SUGGESTION_ROW, 0)
             clear_suggestion_widget(layout, old_widget, SINGLE_SUGGESTION_ROW)
         for slider_idx, frame in enumerate(self.frames):
             # Clear the highlight for all frames
             frame.setStyleSheet(self.clear_frame_style)
             if SUGGESTION_MODE == MULTI:
                 layout = self.layout_widget_lst[slider_idx][0]
-                old_widget = self.layout_widget_lst[slider_idx][0]
+                old_widget = self.layout_widget_lst[slider_idx][1]
                 # Positioning
                 col = 1
                 if slider_idx == PHASE:
                     col = 0
-                clear_suggestion_widget(layout, old_widget, SUGGESTION_ROW, col)
+                placeholder_widget = clear_suggestion_widget(layout, old_widget, col=col)
+                self.layout_widget_lst[slider_idx][1] = placeholder_widget
 
     def update_slider_history(self):
         """
