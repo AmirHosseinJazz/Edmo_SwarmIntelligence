@@ -21,9 +21,11 @@ from PyQt5.QtWidgets import QMainWindow, QMessageBox, QLabel, QLineEdit, QSlider
     QPushButton, QFrame, QTextBrowser, QStyleOptionSlider, QStyle
 from fbs_runtime.application_context.PyQt5 import ApplicationContext
 
-import optimization
 import stopThreading
 
+sys.path.append(path.dirname(path.dirname(path.dirname(path.dirname(path.abspath(__file__))))))
+
+import optimization
 
 class MySlider(QSlider):
     # disable the original mousePressEvent, avoid the jump of the number

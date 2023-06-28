@@ -12,13 +12,13 @@ warnings.filterwarnings('ignore')
 
 def optimization():
     # create subspaces based on our samples and store the classifier and bounds
-    integration.create_subspaces_and_store(n_clusters=2)
+    integration.create_subspaces_and_store(n_clusters=4)
 
     # create objective function for each subspace
     integration.create_objectivefunction_for_subspaces()
 
     # getting the optimums for each subspace using pso , based on the respective objective function
-    # optimums = integration.get_subspace_optimas()
+    optimums = integration.get_subspace_optimas()
 
 
 def retrieve_optimas():
@@ -41,6 +41,6 @@ def suggestion(locations=None):
 
 
 if __name__ == "__main__":
-    # optimization()
-    # print(retrieve_optimas())
+    optimization()
+    print(retrieve_optimas())
     suggestion()

@@ -5,3 +5,4 @@ DataCopy/Data.zip
 utils/test.ipynb
 target/
 src/main/python/resources/save/
+utils/__pycache__/

@@ -7,19 +7,21 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-
+from sklearn.linear_model import LinearRegression
 from utils import subspace
 
 
 def create_subspaces_and_store(n_clusters=8):
     path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
-    path1 = os.path.join(path, 'sampling/olddata/firstbatch_500Samples.csv')
-    path2 = os.path.join(path, 'sampling/olddata/secondbatch_500Samples.csv')
-    df1 = pd.read_csv(path1, sep=',')
-    df2 = pd.read_csv(path2, sep=',')
-    df = pd.concat([df1, df2])
-    cols = df.drop(columns=['Speed', 'Unnamed: 0'], axis=1).columns
+    # path1 = os.path.join(path, 'sampling/olddata/firstbatch_500Samples.csv')
+    # path2 = os.path.join(path, 'sampling/olddata/secondbatch_500Samples.csv')
+    # df1 = pd.read_csv(path1, sep=',')
+    # df2 = pd.read_csv(path2, sep=',')
+    # df = pd.concat([df1, df2])
+    df=pd.read_csv(os.path.join(path, 'sampling/Cleaned_data.csv'), sep=',')
+    cols = df.drop(columns=['Speed'], axis=1).columns
     # creating subspaces based on the sample data 
+    # print(cols)
     clusters_return = subspace.subspace_by_clustering(k=n_clusters, data=df[cols])
     # get currenty directory
     with open(path + "/utils/pickles/cluster_bounds", "wb") as pickewriter:  # Pickling cluster bounds for pso
@@ -31,13 +33,16 @@ def create_subspaces_and_store(n_clusters=8):
 
 def create_objectivefunction_for_subspaces():
     path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
-    path1 = os.path.join(path, 'sampling/olddata/firstbatch_500Samples.csv')
-    path2 = os.path.join(path, 'sampling/olddata/secondbatch_500Samples.csv')
-    df1 = pd.read_csv(path1, sep=',')
-    df2 = pd.read_csv(path2, sep=',')
-    df = pd.concat([df1, df2])
-    df.drop(columns=['Unnamed: 0'], inplace=True)
+    df=pd.read_csv(os.path.join(path, 'sampling/Cleaned_data.csv'), sep=',')
     cols = df.drop(columns=['Speed'], axis=1).columns
+
+    # path1 = os.path.join(path, 'sampling/olddata/firstbatch_500Samples.csv')
+    # path2 = os.path.join(path, 'sampling/olddata/secondbatch_500Samples.csv')
+    # df1 = pd.read_csv(path1, sep=',')
+    # df2 = pd.read_csv(path2, sep=',')
+    # df = pd.concat([df1, df2])
+    # df.drop(columns=['Unnamed: 0'], inplace=True)
+    # cols = df.drop(columns=['Speed'], axis=1).columns
     with open(path + "/utils/pickles/kmeans_classifier", "rb") as f:
         model = pickle.load(f)
     clusters = []
@@ -55,14 +60,26 @@ def create_objectivefunction_for_subspaces():
         # Split the data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=18)
 
-        regr = RandomForestRegressor(max_depth=6, random_state=42, criterion='squared_error')
-        regr.fit(X_train, y_train)
-        y_pred = regr.predict(X_test)
+        # regr = RandomForestRegressor(random_state=42, criterion='squared_error')
+        # regr.fit(X_train, y_train)
+        # y_pred = regr.predict(X_test)
 
-        print('R^2 score: ', regr.score(X_test, y_test))
+        # print('R^2 score: ', regr.score(X_test, y_test))
+        # print('MSE : ', mean_squared_error(y_test, y_pred))
+
+
+
+        model = LinearRegression()
+
+        # Train it
+        model.fit(X_train, y_train)
+
+        # Make prediction
+        y_pred = model.predict(X_test)
+        #  Evaluate the model
+        print('R^2 score: ', model.score(X_test, y_test))
         print('MSE : ', mean_squared_error(y_test, y_pred))
-
-        models.append(regr)
+        models.append(model)
 
     with open(path + "/utils/pickles/subspace_models", "wb") as pick:
         pickle.dump(models, pick)
@@ -96,8 +113,8 @@ def pso(space, regr):
     # [[0, 10], [0, 90], [-90, 90], [-90, 90], [-90, 90], [0, 90]] Define the search space for each parameter
     search_space = space
     inertia = 0.5
-    cognitive_constant = 1.5
-    social_constant = 1.5
+    cognitive_constant = 0.8
+    social_constant = 2.2
     # Initialize the swarm
     swarm = []
     best_positions = []
@@ -134,9 +151,7 @@ def pso(space, regr):
 
             # Update velocity
             velocity = (inertia * np.array(velocity) + cognitive_constant * random.uniform(0, 1) * (
-                        np.array(personal_best_position) - np.array(position)) + social_constant * random.uniform(0,
-                                                                                                                  1) * (
-                                    np.array(personal_best_position) - np.array(position)))
+                        np.array(personal_best_position) - np.array(position)) + social_constant * random.uniform(0,1) * (np.array(personal_best_position) - np.array(position)))
 
             # Update position
             position_temp = np.array(position) + np.array(velocity)
