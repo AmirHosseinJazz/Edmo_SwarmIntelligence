@@ -25,10 +25,6 @@ import optimization
 import stopThreading
 
 
-# from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-# from matplotlib.figure import Figure
-
-
 class MySlider(QSlider):
     # disable the original mousePressEvent, avoid the jump of the number
     def mousePressEvent(self, event):
@@ -516,15 +512,15 @@ def clear_suggestion_widget(layout, old_widget, row=SUGGESTION_ROW, col=0):
 def reformat_sliders_to_backend(slider_list: List[int]) -> List[int]:
     """
     The front-end has everything that has to do with the sliders in the order of
-    frequency, amplitude module 0, offset module 0, phase, amplitude module 1, offset module 1
+    frequency, amplitude module 1, offset module 1, phase, amplitude module 2, offset module 2
     The back-end has everything that has to do with the sliders in the order of
-    frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+    frequency, amplitude module 1, offset module 1, amplitude module 2, offset module 2, phase
     I.e., the 'phase' slider is taken to be at the end of the sequence in the back-end
     instead of in between the modules.
     :param slider_list: A list in the order of
-    frequency, amplitude module 0, offset module 0, phase, amplitude module 1, offset module 1
+    frequency, amplitude module 1, offset module 1, phase, amplitude module 2, offset module 2
     :return: The same list, but in the order of
-    frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+    frequency, amplitude module 1, offset module 1, amplitude module 2, offset module 2, phase
     """
     reformatted_list = slider_list.copy()
     phase = reformatted_list.pop(PHASE)
@@ -535,15 +531,15 @@ def reformat_sliders_to_backend(slider_list: List[int]) -> List[int]:
 def reformat_sliders_to_frontend(slider_list: List[int]) -> List[int]:
     """
     The front-end has everything that has to do with the sliders in the order of
-    frequency, amplitude module 0, offset module 0, phase, amplitude module 1, offset module 1
+    frequency, amplitude module 1, offset module 1, phase, amplitude module 2, offset module 2
     The back-end has everything that has to do with the sliders in the order of
-    frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+    frequency, amplitude module 1, offset module 1, amplitude module 2, offset module 2, phase
     I.e., the 'phase' slider is taken to be at the end of the sequence in the back-end
     instead of in between the modules.
     :param slider_list: A list in the order of
-    frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+    frequency, amplitude module 1, offset module 1, amplitude module 2, offset module 2, phase
     :return: The same list, but in the order of
-    frequency, amplitude module 0, offset module 0, phase, amplitude module 1, offset module 1
+    frequency, amplitude module 1, offset module 1, phase, amplitude module 2, offset module 2
     """
     reformatted_list = copy.deepcopy(slider_list)
     phase = reformatted_list.pop()
@@ -796,7 +792,8 @@ class MainWindow(QMainWindow):
         # For each module, creating the UI-elements for amplitude and offset.
         # They all have the same structure as frequency
         for i in range(self.n):
-            module_label = QLabel("Module %i" % i)
+            # Add 1 to the module number to make it more natural
+            module_label = QLabel("Module %i" % (i + 1))
             module_label.setFont(self.title_font)
             module_label.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
             module_layout.addWidget(module_label, 0, i)
@@ -1021,7 +1018,7 @@ class MainWindow(QMainWindow):
         For future use, this should be changed dynamically if a different number of sliders is used,
         because a different number of modules or modules with more sliders are used.
         The order of sliders of the 2nd dimension is
-        frequency, amplitude module 0, offset module 0, amplitude module 1, offset module 1, phase
+        frequency, amplitude module 1, offset module 1, amplitude module 2, offset module 2, phase
         See also: reformat_sliders
         """
         formatted_slider_history = []
