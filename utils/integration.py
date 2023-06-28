@@ -9,6 +9,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from utils import subspace
+from sklearn.svm import SVR
 
 
 def create_subspaces_and_store(n_clusters=8):
@@ -18,7 +19,7 @@ def create_subspaces_and_store(n_clusters=8):
     # df1 = pd.read_csv(path1, sep=',')
     # df2 = pd.read_csv(path2, sep=',')
     # df = pd.concat([df1, df2])
-    df=pd.read_csv(os.path.join(path, 'sampling/Cleaned_data.csv'), sep=',')
+    df=pd.read_csv(os.path.join(path, 'sampling/newdata/Cleaned_data.csv'), sep=',')
     cols = df.drop(columns=['Speed'], axis=1).columns
     # creating subspaces based on the sample data 
     # print(cols)
@@ -33,7 +34,7 @@ def create_subspaces_and_store(n_clusters=8):
 
 def create_objectivefunction_for_subspaces():
     path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
-    df=pd.read_csv(os.path.join(path, 'sampling/Cleaned_data.csv'), sep=',')
+    df=pd.read_csv(os.path.join(path, 'sampling/newdata/Cleaned_data.csv'), sep=',')
     cols = df.drop(columns=['Speed'], axis=1).columns
 
     # path1 = os.path.join(path, 'sampling/olddata/firstbatch_500Samples.csv')
@@ -58,28 +59,40 @@ def create_objectivefunction_for_subspaces():
         y = sub_df.Speed.values
 
         # Split the data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=18)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33)
 
-        # regr = RandomForestRegressor(random_state=42, criterion='squared_error')
-        # regr.fit(X_train, y_train)
-        # y_pred = regr.predict(X_test)
+        regr = RandomForestRegressor(random_state=42, criterion='squared_error')
+        regr.fit(X_train, y_train)
+        y_pred = regr.predict(X_test)
 
-        # print('R^2 score: ', regr.score(X_test, y_test))
-        # print('MSE : ', mean_squared_error(y_test, y_pred))
-
-
-
-        model = LinearRegression()
-
-        # Train it
-        model.fit(X_train, y_train)
-
-        # Make prediction
-        y_pred = model.predict(X_test)
-        #  Evaluate the model
-        print('R^2 score: ', model.score(X_test, y_test))
+        print('R^2 score: ', regr.score(X_test, y_test))
         print('MSE : ', mean_squared_error(y_test, y_pred))
         models.append(model)
+        ###############################
+        # SVR
+  
+
+        # svr = SVR(C=1.0, epsilon=0.2)
+        # svr.fit(X_train, y_train)
+
+        # y_pred = svr.predict(X_test)
+
+        # print('R^2 score: ',svr.score(X_test, y_test))
+        # print('MSE : ', mean_squared_error(y_test, y_pred))
+        # models.append(svr)
+
+        ###############################
+        # model = LinearRegression()
+
+        # # Train it
+        # model.fit(X_train, y_train)
+
+        # # Make prediction
+        # y_pred = model.predict(X_test)
+        # #  Evaluate the model
+        # print('R^2 score: ', model.score(X_test, y_test))
+        # print('MSE : ', mean_squared_error(y_test, y_pred))
+        # models.append(model)
 
     with open(path + "/utils/pickles/subspace_models", "wb") as pick:
         pickle.dump(models, pick)
@@ -199,3 +212,41 @@ def get_subspace_optimas():
     DF = pd.DataFrame(optimums, index=range(len(optimums)),
                       columns=['Snelheid', 'Omvang1', 'Positie1', 'Omvang2', 'Positie2', 'Relatie'])
     DF.to_csv(path + "/utils/pickles/optimums.csv")
+
+def merging_datasets():
+    path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+    data1=pd.read_csv(path+'/sampling/newdata/NewParameterSamples_0-200.csv')
+    speed1=pd.read_csv(path+'/sampling/newdata/speed_data_new_0-200.csv')
+    speed1=speed1[speed1['Time']>='11:46:00.000']
+    speed1.columns=['Timestamp','Speed']
+    t=pd.merge(speed1,data1,on=['Timestamp'],how='outer')
+    t=t.sort_values(by='Timestamp')
+    for i in t.columns:
+        if i!='Timestamp' and i!='Speed':
+            t[i]=t[i].fillna(method='ffill')
+    t=t.dropna(subset=['Snelheid'])        
+    t['Speed']=t['Speed'].fillna(method='bfill')
+    results=t.groupby(['Snelheid', 'Omvang1', 'Positie1', 'Omvang2','Positie2', 'Relatie']).agg({'Speed':np.mean})
+    Final1=results.reset_index()
+    ####
+    data2=pd.read_csv(path+'/sampling/newdata/NewParameterSamples_201-500.csv')
+    speed2=pd.read_csv(path+'/sampling/newdata/speed_data_new_201-500.csv')
+    speed2=speed2[speed2['Time']>='09:22:00.000']
+    speed2.columns=['Timestamp','Speed']
+    t=pd.merge(speed2,data2,on=['Timestamp'],how='outer')
+    t=t.sort_values(by='Timestamp')
+    for i in t.columns:
+        if i!='Timestamp' and i!='Speed':
+            t[i]=t[i].fillna(method='ffill')
+    t=t.dropna(subset=['Snelheid'])        
+    t['Speed']=t['Speed'].fillna(method='bfill')
+    results=t.groupby(['Snelheid', 'Omvang1', 'Positie1', 'Omvang2','Positie2', 'Relatie']).agg({'Speed':np.mean})
+    Final2=results.reset_index()
+    ###
+    Final=pd.concat([Final1,Final2])
+    ####
+    outliers=pd.read_csv(path+'/sampling/newdata/outliers.csv')
+    ####
+    for index,row in outliers.iterrows():
+        Final=Final[~((Final['Snelheid']==row['Snelheid'])&(Final['Omvang1']==row['Omvang1'])&(Final['Positie1']==row['Positie1'])&(Final['Omvang2']==row['Omvang2'])&(Final['Positie2']==row['Positie2'])&(Final['Relatie']==row['Relatie']))]
+    Final.to_csv(path+'/sampling/newdata/Cleaned_data.csv',index=False)
