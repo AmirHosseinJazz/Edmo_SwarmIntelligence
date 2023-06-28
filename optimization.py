@@ -16,7 +16,7 @@ def optimization():
 
 
     # create subspaces based on our samples and store the classifier and bounds
-    integration.create_subspaces_and_store(n_clusters=15)
+    integration.create_subspaces_and_store(n_clusters=4)
 
     # create objective function for each subspace
     integration.create_objectivefunction_for_subspaces()
@@ -47,4 +47,4 @@ def suggestion(locations=None):
 if __name__ == "__main__":
     optimization()
     print(retrieve_optimas())
-    suggestion()
+    # suggestion()

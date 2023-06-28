@@ -20,20 +20,22 @@ def movement_toward_nearest_optima(optimas, locations):
     locations: (4, 6) array of locations
     """
     nearest_optima = Nearest_Optima(optimas, locations[-1])
-    distance_to_nearest_optima = np.linalg.norm(optimas[nearest_optima] - locations[-1])
-    distance_to_nearest_optima_previous_1 = np.linalg.norm(optimas[nearest_optima] - locations[-2])
-    distance_to_nearest_optima_previous_2 = np.linalg.norm(optimas[nearest_optima] - locations[-3])
-
-    #e
-
-    # movement = np.array(
-    #     [distance_to_nearest_optima, distance_to_nearest_optima_previous_1, distance_to_nearest_optima_previous_2])
-    # check if movement is monotonically increasing
-
-
+    OP=optimas[nearest_optima]
+    OP[0]=OP[0]*10
+    # print(locations[-1])
+    locations[-1][0]=locations[-1][0]*100
+    locations[-2][0]=locations[-2][0]*100
+    locations[-3][0]=locations[-3][0]*100
+    print('-------------------')
+    # print(OP)
+    # print(locations[-1])
+    distance_to_nearest_optima = np.linalg.norm(OP - locations[-1])
+    distance_to_nearest_optima_previous_1 = np.linalg.norm(OP - locations[-2])
+    distance_to_nearest_optima_previous_2 = np.linalg.norm(OP - locations[-3])
+    print(distance_to_nearest_optima+distance_to_nearest_optima_previous_1+distance_to_nearest_optima_previous_2)
     if ((distance_to_nearest_optima>distance_to_nearest_optima_previous_1)&(distance_to_nearest_optima_previous_1>distance_to_nearest_optima_previous_2)):
         print('Time for feedback')
-        return provide_feedback(optimas[nearest_optima], locations[-1])
+        return provide_feedback(OP, locations[-1])
     else:
         print('No feedback')
         return [0, 0, 0, 0, 0, 0]
@@ -48,6 +50,7 @@ def provide_feedback(optima, location):
     # finding the biggest difference between the elements of the two arrays
     # print(optima)
     # print(location)
+
     diff = np.abs(optima - location)
     # print(diff)
     max_diff = np.max(diff)

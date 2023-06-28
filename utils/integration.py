@@ -8,6 +8,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
 from utils import subspace
 from sklearn.svm import SVR
 
@@ -53,6 +54,8 @@ def create_objectivefunction_for_subspaces():
         clusters.append(model.predict(temp)[0])
     df['Cluster'] = clusters
     models = []
+    feautre_imp=[]
+    mses=[]
     for i in range(model.n_clusters):
         sub_df = df[df['Cluster'] == i]
         X = sub_df.drop(columns=['Speed', 'Cluster'], axis=1).values
@@ -65,8 +68,12 @@ def create_objectivefunction_for_subspaces():
         regr.fit(X_train, y_train)
         y_pred = regr.predict(X_test)
 
-        print('R^2 score: ', regr.score(X_test, y_test))
-        print('MSE : ', mean_squared_error(y_test, y_pred))
+        #feature importance
+        # print('feature importance',regr.feature_importances_)
+        feautre_imp.append(regr.feature_importances_)
+        # print('R^2 score: ', regr.score(X_test, y_test))
+        # print('MSE : ', mean_squared_error(y_test, y_pred))
+        mses.append(mean_squared_error(y_test, y_pred))
         models.append(model)
         ###############################
         # SVR
@@ -77,8 +84,9 @@ def create_objectivefunction_for_subspaces():
 
         # y_pred = svr.predict(X_test)
 
-        # print('R^2 score: ',svr.score(X_test, y_test))
+        # # print('R^2 score: ',svr.score(X_test, y_test))
         # print('MSE : ', mean_squared_error(y_test, y_pred))
+        # mses.append(mean_squared_error(y_test, y_pred))
         # models.append(svr)
 
         ###############################
@@ -90,10 +98,23 @@ def create_objectivefunction_for_subspaces():
         # # Make prediction
         # y_pred = model.predict(X_test)
         # #  Evaluate the model
-        # print('R^2 score: ', model.score(X_test, y_test))
-        # print('MSE : ', mean_squared_error(y_test, y_pred))
+        # # print('R^2 score: ', model.score(X_test, y_test))
+        # # print('MSE : ', mean_squared_error(y_test, y_pred))
+        # mses.append(mean_squared_error(y_test, y_pred))
         # models.append(model)
 
+
+        ######
+        # model=DecisionTreeRegressor()
+        # model.fit(X_train, y_train)
+        # y_pred = model.predict(X_test)
+        # #  Evaluate the model
+        # # print('R^2 score: ', model.score(X_test, y_test))
+        # print('MSE : ', mean_squared_error(y_test, y_pred))
+        # mses.append(mean_squared_error(y_test, y_pred))
+        # models.append(model)
+    print('feature importance',np.mean(feautre_imp,axis=0))
+    print('MSE : ', np.mean(mses))
     with open(path + "/utils/pickles/subspace_models", "wb") as pick:
         pickle.dump(models, pick)
 
