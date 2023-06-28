@@ -1143,7 +1143,7 @@ class MainWindow(QMainWindow):
                 # If the slider index is amplitude or offset
                 if slider_idx % 3 in [1, 2]:
                     module_name += "Module "
-                    module_name += str(int(np.floor(slider_idx / 3)))
+                    module_name += str(int(np.ceil(slider_idx / 3)))
                 label_text = direction + " " + slider_name + module_name
                 new_widget.setText(label_text)
                 new_widget.setFont(self.label_font)
@@ -1507,7 +1507,7 @@ class MainWindow(QMainWindow):
         # dequeue
         self.slider_history.get()
         # enqueue
-        self.slider_history.put(self.slider_values)
+        self.slider_history.put(self.slider_values.copy())
 
     def update_slider_value(self, slider: MySlider, val: int) -> None:
         """
