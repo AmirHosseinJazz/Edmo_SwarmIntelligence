@@ -11,8 +11,12 @@ warnings.filterwarnings('ignore')
 
 
 def optimization():
+    # merging datasets
+    integration.merging_datasets()
+
+
     # create subspaces based on our samples and store the classifier and bounds
-    integration.create_subspaces_and_store(n_clusters=4)
+    integration.create_subspaces_and_store(n_clusters=15)
 
     # create objective function for each subspace
     integration.create_objectivefunction_for_subspaces()

@@ -24,12 +24,14 @@ def movement_toward_nearest_optima(optimas, locations):
     distance_to_nearest_optima_previous_1 = np.linalg.norm(optimas[nearest_optima] - locations[-2])
     distance_to_nearest_optima_previous_2 = np.linalg.norm(optimas[nearest_optima] - locations[-3])
 
-    movement = np.array(
-        [distance_to_nearest_optima, distance_to_nearest_optima_previous_1, distance_to_nearest_optima_previous_2])
+    #e
 
-    # print(movement)
+    # movement = np.array(
+    #     [distance_to_nearest_optima, distance_to_nearest_optima_previous_1, distance_to_nearest_optima_previous_2])
     # check if movement is monotonically increasing
-    if np.all(np.diff(movement) > 0):
+
+
+    if ((distance_to_nearest_optima>distance_to_nearest_optima_previous_1)&(distance_to_nearest_optima_previous_1>distance_to_nearest_optima_previous_2)):
         print('Time for feedback')
         return provide_feedback(optimas[nearest_optima], locations[-1])
     else:
